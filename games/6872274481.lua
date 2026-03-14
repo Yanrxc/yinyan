@@ -219,7 +219,7 @@ local function getTool(breakType)
 end
 
 local function getWool()
-	for _, wool in (inv or store.inventory.inventory.items) do
+	for _, wool in store.inventory.inventory.items do
 		if wool.itemType:find('wool') then
 			return wool and wool.itemType, wool and wool.amount
 		end
@@ -450,6 +450,15 @@ local kitorder = {
 	regent = 1
 }
 
+local function HasSeed(character)
+    if not character then return false end
+    if character:FindFirstChild("Seed") then return true end
+    for _, v in character:GetDescendants() do
+        if v.Name == "Seed" then return true end
+    end
+    return false
+end
+
 local sortmethods = {
 	Damage = function(a, b)
 		return a.Entity.Character:GetAttribute('LastDamageTakenTime') < b.Entity.Character:GetAttribute('LastDamageTakenTime')
@@ -487,15 +496,6 @@ local sortmethods = {
 		return distA < distB
 	end
 }
-
-local function HasSeed(character)
-    if not character then return false end
-    if character:FindFirstChild("Seed") then return true end
-    for _, v in character:GetDescendants() do
-        if v.Name == "Seed" then return true end
-    end
-    return false
-end
 
 run(function()
 	local oldstart = entitylib.start
@@ -1395,7 +1395,7 @@ run(function()
 					v.Jumping = false
 				end
 			end
-			task.wait()
+			task.wait(0.05)
 		end
 	end)
 	vape:Clean(function() airTimeThreadRunning = false end)
@@ -9200,6 +9200,7 @@ run(function()
         Name = 'AutoChargeBow',
         Function = function(callback)
             if callback then
+                local baseFunc = getgenv()._aerov4_original_calcLaunch or bedwars.ProjectileController.calculateImportantLaunchValues
                 old = bedwars.ProjectileController.calculateImportantLaunchValues
                 bedwars.ProjectileController.calculateImportantLaunchValues = function(...)
                     local result = old(...)
@@ -9211,7 +9212,11 @@ run(function()
                     return result
                 end
             else
-                bedwars.ProjectileController.calculateImportantLaunchValues = old
+                if old then
+                    local current = bedwars.ProjectileController.calculateImportantLaunchValues
+                    bedwars.ProjectileController.calculateImportantLaunchValues = old
+                    old = nil
+                end
             end
         end,
         Tooltip = 'Automatically charges your bow with controllable charge percentage'
@@ -9348,14 +9353,19 @@ run(function()
 
                 hideTitanAssets()
                 
+                local processingDescendant = false
                 local descendantConnection = workspace.DescendantAdded:Connect(function(descendant)
+                    if processingDescendant then return end
+                    processingDescendant = true
+
                     if descendant:IsA("Model") and matchesTitanPattern(descendant.Name) then
                         task.delay(0.1, function()
+                            processingDescendant = false
                             if descendant.Parent then
                                 processModel(descendant)
                             end
                         end)
-                        
+                        return
                     elseif descendant:IsA("ParticleEmitter") then
                         local parent = descendant.Parent
                         if parent and matchesTitanPattern(parent.Name) then
@@ -9364,7 +9374,6 @@ run(function()
                                 descendant.Enabled = false
                             end
                         end
-                        
                     elseif descendant:IsA("Sound") then
                         if matchesTitanPattern(descendant.Name) then
                             if not originalProperties[descendant] then
@@ -9373,6 +9382,8 @@ run(function()
                             end
                         end
                     end
+
+                    processingDescendant = false
                 end)
                 table.insert(moduleConnectionList, descendantConnection)
                 
@@ -10993,7 +11004,6 @@ run(function()
         end
     end)
 end)
-
 run(function()
 	local BedAlarm
 	local Range
@@ -11304,12 +11314,17 @@ run(function()
 				
 				StorageESP:Clean(collectionService:GetInstanceAddedSignal('chest'):Connect(Added))
 				StorageESP:Clean(collectionService:GetInstanceRemovedSignal('chest'):Connect(Removed))
-				
+				StorageESP:Clean(collectionService:GetInstanceAddedSignal('chest'):Connect(function(chest)
+					if Reference[chest] then
+						refreshAdornee(Reference[chest])
+					end
+				end))
 				StorageESP:Clean(runService.Heartbeat:Connect(function()
+					local now = tick()
+					if not StorageESP._lastCleanup or now - StorageESP._lastCleanup < 2 then return end
+					StorageESP._lastCleanup = now
 					for chest, billboard in pairs(Reference) do
-						if chest and chest.Parent then
-							refreshAdornee(billboard)
-						else
+						if not chest or not chest.Parent then
 							Removed(chest)
 						end
 					end
@@ -22543,6 +22558,7 @@ run(function()
 						local root = entitylib.character.RootPart
 						local pearl = getItem('telepearl')
 						local currentTime = tick()
+						voidRayParams.FilterDescendantsInstances = {lplr.Character, gameCamera}
 
 						local velY = root.AssemblyLinearVelocity.Y
 						local falling = velY < -60
@@ -22561,6 +22577,8 @@ run(function()
 						else
 							pearlTriggered = false
 						end
+					else
+						pearlTriggered = false
 					end
 					task.wait(0.05)
 				until not AutoPearl.Enabled
