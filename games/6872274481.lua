@@ -465,11 +465,7 @@ local kitorder = {
 
 local function HasSeed(character)
     if not character then return false end
-    if character:FindFirstChild("Seed") then return true end
-    for _, v in character:GetDescendants() do
-        if v.Name == "Seed" then return true end
-    end
-    return false
+    return character:FindFirstChild("Seed", true) ~= nil
 end
 
 local sortmethods = {
@@ -526,8 +522,8 @@ run(function()
 	end
 
 	entitylib.start = function()
-		oldstart()
 		if entitylib.Running then entitylib.stop() end
+		oldstart()
 
 		table.insert(entitylib.Connections, playersService.PlayerAdded:Connect(function(v)
 			entitylib.addPlayer(v)
@@ -546,7 +542,6 @@ run(function()
 				local npcTeam = self.Character:GetAttribute('Team')
 				return lplr:GetAttribute('Team') ~= npcTeam
 			end
-
 			entitylib.addEntity(ent, nil, teamFunc)
 		end
 
@@ -569,11 +564,12 @@ run(function()
 	entitylib.addPlayer = function(plr)
 		if entitylib.PlayerConnections[plr] then
 			for _, conn in ipairs(entitylib.PlayerConnections[plr]) do
-				pcall(function()
-					if conn.Connected then conn:Disconnect() end
-				end)
+				if conn and typeof(conn) == "RBXScriptConnection" then
+					conn:Disconnect()
+				end
 			end
 		end
+
 		if plr.Character then
 			entitylib.refreshEntity(plr.Character, plr)
 		end
@@ -16783,21 +16779,34 @@ run(function()
 		Tooltip = 'free headless 2026',
 		Function = function(callback)
 			if callback then
-				task.spawn(function()
-					repeat
-						task.wait()
-						if entitylib.isAlive and entitylib.character and entitylib.character.Character and entitylib.character.Head then
-							entitylib.character.Head.Transparency = 1
-							local face = entitylib.character.Head:FindFirstChild('face')
-							if face and face:IsA("Decal") then
-								if faceTransparencyBackup == nil then
-									faceTransparencyBackup = face.Transparency
-								end
-								face.Transparency = 1
-							end
+				local function applyHeadless()
+					if not (entitylib.isAlive and entitylib.character and entitylib.character.Character and entitylib.character.Head) then return end
+					local head = entitylib.character.Head
+					if faceTransparencyBackup == nil then
+						local face = head:FindFirstChild('face')
+						if face and face:IsA("Decal") then
+							faceTransparencyBackup = face.Transparency
 						end
-					until not Headless.Enabled
-				end)
+					end
+					head.Transparency = 1
+					local face = head:FindFirstChild('face')
+					if face and face:IsA("Decal") then
+						face.Transparency = 1
+					end
+				end
+
+				applyHeadless()
+
+				Headless:Clean(entitylib.Events.LocalAdded:Connect(function()
+					faceTransparencyBackup = nil
+					applyHeadless()
+				end))
+
+				Headless:Clean(vapeEvents.AttributeChanged.Event:Connect(function(attr)
+					if attr == 'Health' then
+						applyHeadless()
+					end
+				end))
 			else
 				if entitylib.isAlive and entitylib.character and entitylib.character.Character and entitylib.character.Head then
 					entitylib.character.Head.Transparency = 0
@@ -18789,9 +18798,10 @@ run(function()
                     renderConnection:Disconnect()
                 end
                 
-                renderConnection = runService.RenderStepped:Connect(updateCursor)
-                
-                InvisibleCursor:Clean(vapeEvents.InventoryChanged.Event:Connect(updateCursor))
+				renderConnection = runService.RenderStepped:Connect(updateCursor)
+				InvisibleCursor:Clean(renderConnection)
+
+				InvisibleCursor:Clean(vapeEvents.InventoryChanged.Event:Connect(updateCursor))
             else
                 isActive = false
                 
