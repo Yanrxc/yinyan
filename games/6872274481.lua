@@ -1,4 +1,5 @@
 --This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
+--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
 local run = function(func)
     local ok, err = pcall(func)
     if not ok then
@@ -6006,7 +6007,6 @@ run(function()
                             end)
                         end
 
-                        -- reuse same scan for both swing and attack targets (same range, no need to scan twice)
                         local allAttackTargets = allSwingTargets
 
                         local swingPlrs = {}
@@ -6019,26 +6019,32 @@ run(function()
                             table.insert(attackPlrs, allAttackTargets[i].entity)
                         end
                         
-                        local hasValidSwingTargets = false
-                        local hasValidAttackTargets = false
-                        
-                        for _, v in swingPlrs do
-                            local delta = (v.RootPart.Position - selfpos)
-                            local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
-                            if angle <= maxAngle then
-                                hasValidSwingTargets = true
-                                break
-                            end
-                        end
-                        
-                        for _, v in attackPlrs do
-                            local delta = (v.RootPart.Position - selfpos)
-                            local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
-                            if angle <= maxAngle then  
-                                hasValidAttackTargets = true
-                                break
-                            end
-                        end
+						local hasValidSwingTargets = false
+						local hasValidAttackTargets = false
+						local currentTarget = nil   
+
+						for _, v in attackPlrs do
+							local delta = (v.RootPart.Position - selfpos)
+							local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
+							if angle <= maxAngle then
+								hasValidAttackTargets = true
+								currentTarget = currentTarget or v
+								break   
+							end
+						end
+
+						if not hasValidAttackTargets then
+							for _, v in swingPlrs do
+								local delta = (v.RootPart.Position - selfpos)
+								local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
+								if angle <= maxAngle then
+									hasValidSwingTargets = true
+									currentTarget = currentTarget or v
+									break
+								end
+							end
+						end
+						store.KillauraTarget = currentTarget
                         
                         if hasValidSwingTargets or hasValidAttackTargets then
                             lastTargetTime = tick()
@@ -6819,6 +6825,15 @@ run(function()
 							switchItem(sword.tool, 0)
 							local selfpos = entitylib.character.RootPart.Position
 							local localfacing = entitylib.character.RootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+							store.KillauraTarget = nil
+							for _, v in plrs do
+								local delta = (v.RootPart.Position - selfpos)
+								local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
+								if angle <= (math.rad(AngleSlider.Value) / 2) then
+									store.KillauraTarget = v
+									break
+								end
+							end
 
 							for _, v in plrs do
 								local delta = (v.RootPart.Position - selfpos)
@@ -6833,14 +6848,12 @@ run(function()
 
 								if not Attacking then
 									Attacking = true
-									store.KillauraTarget = v
 									if not Swing.Enabled and AnimDelay < tick() and not LegitAura.Enabled then
 										AnimDelay = tick() + (meta.sword.respectAttackSpeedForEffects and meta.sword.attackSpeed or math.max(ChargeTime.Value, 0.11))
 										bedwars.SwordController:playSwordEffect(meta, false)
 										if meta.displayName:find(' Scythe') then
 											bedwars.ScytheController:playLocalAnimation()
 										end
-
 										if vape.ThreadFix then
 											setthreadidentity(8)
 										end
