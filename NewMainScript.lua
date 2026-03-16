@@ -35,37 +35,60 @@ local function wipeFolder(path)
 end
 
 local function downloadPremadeProfiles(commit)
-	local httpService = game:GetService('HttpService')
-	if not isfolder('newvape/profiles/premade') then
-		makefolder('newvape/profiles/premade')
-	end
+    local httpService = game:GetService('HttpService')
+    if not isfolder('newvape/profiles/premade') then makefolder('newvape/profiles/premade') end
+    local success, response = pcall(function()
+        return game:HttpGet('https://api.github.com/repos/'..EXPECTED_REPO_OWNER..'/'..EXPECTED_REPO_NAME..'/contents/profiles/premade?ref='..commit)
+    end)
+    if success and response then
+        local ok, files = pcall(function() return httpService:JSONDecode(response) end)
+        if ok and type(files) == 'table' then
+            for _, file in pairs(files) do
+                if file.name and file.name:find('.txt') and file.name ~= 'commit.txt' then
+                    local filePath = 'newvape/profiles/premade/'..file.name
+                    if not isfile(filePath) then
+                        local dl = file.download_url or ('https://raw.githubusercontent.com/'..EXPECTED_REPO_OWNER..'/'..EXPECTED_REPO_NAME..'/'..commit..'/profiles/premade/'..file.name)
+                        local ds, dc = pcall(function() return game:HttpGet(dl, true) end)
+                        if ds and dc and dc ~= '404: Not Found' then writefile(filePath, dc) end
+                    end
+                end
+            end
+        end
+    end
+end
 
-	local success, response = pcall(function()
-		return game:HttpGet('https://api.github.com/repos/poopparty/poopparty/contents/profiles/premade?ref=' .. commit)
-	end)
+local function downloadPremadeProfiles(commit)
+    local httpService = game:GetService('HttpService')
+    if not isfolder('newvape/profiles/premade') then
+        makefolder('newvape/profiles/premade')
+    end
 
-	if success and response then
-		local ok, files = pcall(function()
-			return httpService:JSONDecode(response)
-		end)
+    local success, response = pcall(function()
+        return game:HttpGet('https://api.github.com/repos/poopparty/poopparty/contents/profiles/premade?ref=' .. commit)
+    end)
 
-		if ok and type(files) == 'table' then
-			for _, file in pairs(files) do
-				if file.name and file.name:find('.txt') and file.name ~= 'commit.txt' then
-					local filePath = 'newvape/profiles/premade/' .. file.name
-					if not isfile(filePath) then
-						local dl = file.download_url or ('https://raw.githubusercontent.com/poopparty/poopparty/' .. commit .. '/profiles/premade/' .. file.name)
-						local ds, dc = pcall(function()
-							return game:HttpGet(dl, true)
-						end)
-						if ds and dc and dc ~= '404: Not Found' then
-							writefile(filePath, dc)
-						end
-					end
-				end
-			end
-		end
-	end
+    if success and response then
+        local ok, files = pcall(function()
+            return httpService:JSONDecode(response)
+        end)
+
+        if ok and type(files) == 'table' then
+            for _, file in pairs(files) do
+                if file.name and file.name:find('.txt') and file.name ~= 'commit.txt' then
+                    local filePath = 'newvape/profiles/premade/' .. file.name
+                    if not isfile(filePath) then
+                        local dl = file.download_url or ('https://raw.githubusercontent.com/poopparty/poopparty/' .. commit .. '/profiles/premade/' .. file.name)
+                        local ds, dc = pcall(function()
+                            return game:HttpGet(dl, true)
+                        end)
+                        if ds and dc and dc ~= '404: Not Found' then
+                            writefile(filePath, dc)
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 for _, folder in {'newvape', 'newvape/games', 'newvape/profiles', 'newvape/assets', 'newvape/libraries', 'newvape/guis'} do
@@ -75,18 +98,14 @@ for _, folder in {'newvape', 'newvape/games', 'newvape/profiles', 'newvape/asset
 end
 
 if not shared.VapeDeveloper then
-	local commit
-	local success, response = pcall(function()
-		return game:HttpGet('https://api.github.com/repos/poopparty/poopparty/commits/main')
+	local _, subbed = pcall(function()
+		return game:HttpGet('https://github.com/poopparty/poopparty')
 	end)
-	if success then
-		local data = game:GetService('HttpService'):JSONDecode(response)
-		commit = data.sha
-	else
-		commit = isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or 'main'
-	end
-
-	if commit ~= (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') then
+	local commit = subbed:find('currentOid')
+	commit = commit and subbed:sub(commit + 13, commit + 52) or nil
+	commit = commit and #commit == 40 and commit or 'main'
+	if commit == 'main' or (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') ~= commit then
+		wipeFolder('newvape')
 		wipeFolder('newvape/games')
 		wipeFolder('newvape/guis')
 		wipeFolder('newvape/libraries')
