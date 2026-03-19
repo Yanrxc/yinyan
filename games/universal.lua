@@ -1,4 +1,5 @@
 --This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
+--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
 local loadstring = function(...)
 	local res, err = loadstring(...)
 	if err and vape then
@@ -4065,14 +4066,15 @@ run(function()
 	local Teammates
 	local Distance
 	local DistanceLimit
+	local BoxSize
 	local Reference = {}
 	local methodused
-	
+
 	local function ESPWorldToViewport(pos)
 		local newpos = gameCamera:WorldToViewportPoint(gameCamera.CFrame:pointToWorldSpace(gameCamera.CFrame:PointToObjectSpace(pos)))
 		return Vector2.new(newpos.X, newpos.Y)
 	end
-	
+
 	local ESPAdded = {
 		Drawing2D = function(ent)
 			if not Targets.Players.Enabled and ent.Player then return end
@@ -4088,7 +4090,7 @@ run(function()
 			EntityESP.Main.Filled = false
 			EntityESP.Main.Thickness = 1
 			EntityESP.Main.Color = entitylib.getEntityColor(ent) or Color3.fromHSV(Color.Hue, Color.Sat, Color.Value)
-	
+
 			if BoundingBox.Enabled then
 				EntityESP.Border = Drawing.new('Square')
 				EntityESP.Border.Transparency = 0.35
@@ -4103,7 +4105,7 @@ run(function()
 				EntityESP.Border2.Filled = Filled.Enabled
 				EntityESP.Border2.Color = Color3.new()
 			end
-	
+
 			if HealthBar.Enabled then
 				EntityESP.HealthLine = Drawing.new('Line')
 				EntityESP.HealthLine.Thickness = 1
@@ -4115,7 +4117,7 @@ run(function()
 				EntityESP.HealthBorder.ZIndex = 1
 				EntityESP.HealthBorder.Color = Color3.new()
 			end
-			
+
 			if Name.Enabled then
 				if Background.Enabled then
 					EntityESP.TextBKG = Drawing.new('Square')
@@ -4130,13 +4132,13 @@ run(function()
 				EntityESP.Drop.Text = ent.Player and whitelist:tag(ent.Player, true)..(DisplayName.Enabled and ent.Player.DisplayName or ent.Player.Name) or ent.Character.Name
 				EntityESP.Drop.ZIndex = 1
 				EntityESP.Drop.Center = true
-				EntityESP.Drop.Size = 20
+				EntityESP.Drop.Size = 22
 				EntityESP.Text = Drawing.new('Text')
 				EntityESP.Text.Text = EntityESP.Drop.Text
 				EntityESP.Text.ZIndex = 2
 				EntityESP.Text.Color = EntityESP.Main.Color
 				EntityESP.Text.Center = true
-				EntityESP.Text.Size = 20
+				EntityESP.Text.Size = 22
 			end
 			Reference[ent] = EntityESP
 		end,
@@ -4160,13 +4162,13 @@ run(function()
 			EntityESP.Line10 = Drawing.new('Line')
 			EntityESP.Line11 = Drawing.new('Line')
 			EntityESP.Line12 = Drawing.new('Line')
-	
+
 			local color = entitylib.getEntityColor(ent) or Color3.fromHSV(Color.Hue, Color.Sat, Color.Value)
 			for _, v in EntityESP do
 				v.Thickness = 1
 				v.Color = color
 			end
-	
+
 			Reference[ent] = EntityESP
 		end,
 		DrawingSkeleton = function(ent)
@@ -4186,17 +4188,17 @@ run(function()
 			EntityESP.RightArm = Drawing.new('Line')
 			EntityESP.LeftLeg = Drawing.new('Line')
 			EntityESP.RightLeg = Drawing.new('Line')
-	
+
 			local color = entitylib.getEntityColor(ent) or Color3.fromHSV(Color.Hue, Color.Sat, Color.Value)
 			for _, v in EntityESP do
 				v.Thickness = 2
 				v.Color = color
 			end
-	
+
 			Reference[ent] = EntityESP
 		end
 	}
-	
+
 	local ESPRemoved = {
 		Drawing2D = function(ent)
 			local EntityESP = Reference[ent]
@@ -4216,7 +4218,7 @@ run(function()
 	}
 	ESPRemoved.Drawing3D = ESPRemoved.Drawing2D
 	ESPRemoved.DrawingSkeleton = ESPRemoved.Drawing2D
-	
+
 	local ESPUpdated = {
 		Drawing2D = function(ent)
 			local EntityESP = Reference[ent]
@@ -4224,11 +4226,11 @@ run(function()
 				if vape.ThreadFix then
 					setthreadidentity(8)
 				end
-				
+
 				if EntityESP.HealthLine then
 					EntityESP.HealthLine.Color = Color3.fromHSV(math.clamp(ent.Health / ent.MaxHealth, 0, 1) / 2.5, 0.89, 0.75)
 				end
-	
+
 				if EntityESP.Text then
 					EntityESP.Text.Text = ent.Player and whitelist:tag(ent.Player, true)..(DisplayName.Enabled and ent.Player.DisplayName or ent.Player.Name) or ent.Character.Name
 					EntityESP.Drop.Text = EntityESP.Text.Text
@@ -4236,7 +4238,7 @@ run(function()
 			end
 		end
 	}
-	
+
 	local ColorFunc = {
 		Drawing2D = function(hue, sat, val)
 			local color = Color3.fromHSV(hue, sat, val)
@@ -4258,7 +4260,7 @@ run(function()
 		end
 	}
 	ColorFunc.DrawingSkeleton = ColorFunc.Drawing3D
-	
+
 	local ESPLoop = {
 		Drawing2D = function()
 			for ent, EntityESP in Reference do
@@ -4271,15 +4273,22 @@ run(function()
 						continue
 					end
 				end
-	
-				local rootPos, rootVis = gameCamera:WorldToViewportPoint(ent.RootPart.Position)
+
+				local pos = ent.RootPart.Position
+
+				if shared.vape and shared.vape.hackerTable and table.find(shared.vape.hackerTable, ent.Player) and entitylib.isAlive then
+					pos = Vector3.new(pos.X, entitylib.character.RootPart.Position.Y, pos.Z)
+				end
+
+				local rootPos, rootVis = gameCamera:WorldToViewportPoint(pos - Vector3.new(0, 0.5, 0))
 				for _, obj in EntityESP do
 					obj.Visible = rootVis
 				end
 				if not rootVis then continue end
-	
-				local topPos = gameCamera:WorldToViewportPoint((CFrame.lookAlong(ent.RootPart.Position, gameCamera.CFrame.LookVector) * CFrame.new(2, ent.HipHeight, 0)).p)
-				local bottomPos = gameCamera:WorldToViewportPoint((CFrame.lookAlong(ent.RootPart.Position, gameCamera.CFrame.LookVector) * CFrame.new(-2, -ent.HipHeight - 1, 0)).p)
+
+				local scale = BoxSize.Value
+				local topPos = gameCamera:WorldToViewportPoint((CFrame.lookAlong(pos - Vector3.new(0, 0.5, 0), gameCamera.CFrame.LookVector) * CFrame.new(scale, ent.HipHeight * scale, 0)).p)
+				local bottomPos = gameCamera:WorldToViewportPoint((CFrame.lookAlong(pos - Vector3.new(0, 0.5, 0), gameCamera.CFrame.LookVector) * CFrame.new(-scale, -ent.HipHeight * scale - 1, 0)).p)
 				local sizex, sizey = topPos.X - bottomPos.X, topPos.Y - bottomPos.Y
 				local posx, posy = (rootPos.X - sizex / 2),  ((rootPos.Y - sizey / 2))
 				EntityESP.Main.Position = Vector2.new(posx, posy) // 1
@@ -4290,7 +4299,7 @@ run(function()
 					EntityESP.Border2.Position = Vector2.new(posx + 1, posy - 1) // 1
 					EntityESP.Border2.Size = Vector2.new(sizex - 2, sizey + 2) // 1
 				end
-	
+
 				if EntityESP.HealthLine then
 					local healthposy = sizey * math.clamp(ent.Health / ent.MaxHealth, 0, 1)
 					EntityESP.HealthLine.Visible = ent.Health > 0
@@ -4299,10 +4308,10 @@ run(function()
 					EntityESP.HealthBorder.From = Vector2.new(posx - 6, posy + 1) // 1
 					EntityESP.HealthBorder.To = Vector2.new(posx - 6, (posy + sizey) - 1) // 1
 				end
-	
+
 				if EntityESP.Text then
-					EntityESP.Text.Position = Vector2.new(posx + (sizex / 2), posy + (sizey - 28)) // 1
-					EntityESP.Drop.Position = EntityESP.Text.Position + Vector2.new(1, 1)
+					EntityESP.Text.Position = Vector2.new(posx + (sizex / 2) + 4, posy + (sizey - 28)) // 1
+					EntityESP.Drop.Position = EntityESP.Text.Position + Vector2.new(0.5, 0.5)
 					if EntityESP.TextBKG then
 						EntityESP.TextBKG.Size = EntityESP.Text.TextBounds + Vector2.new(8, 4)
 						EntityESP.TextBKG.Position = EntityESP.Text.Position - Vector2.new(4 + (EntityESP.Text.TextBounds.X / 2), 0)
@@ -4321,21 +4330,27 @@ run(function()
 						continue
 					end
 				end
-	
-				local _, rootVis = gameCamera:WorldToViewportPoint(ent.RootPart.Position)
+
+				local pos = ent.RootPart.Position
+
+				if shared.vape and shared.vape.hackerTable and table.find(shared.vape.hackerTable, ent.Player) and entitylib.isAlive then
+					pos = Vector3.new(pos.X, entitylib.character.RootPart.Position.Y, pos.Z)
+				end
+
+				local _, rootVis = gameCamera:WorldToViewportPoint(pos)
 				for _, obj in EntityESP do
 					obj.Visible = rootVis
 				end
 				if not rootVis then continue end
-	
-				local point1 = ESPWorldToViewport(ent.RootPart.Position + Vector3.new(1.5, ent.HipHeight, 1.5))
-				local point2 = ESPWorldToViewport(ent.RootPart.Position + Vector3.new(1.5, -ent.HipHeight, 1.5))
-				local point3 = ESPWorldToViewport(ent.RootPart.Position + Vector3.new(-1.5, ent.HipHeight, 1.5))
-				local point4 = ESPWorldToViewport(ent.RootPart.Position + Vector3.new(-1.5, -ent.HipHeight, 1.5))
-				local point5 = ESPWorldToViewport(ent.RootPart.Position + Vector3.new(1.5, ent.HipHeight, -1.5))
-				local point6 = ESPWorldToViewport(ent.RootPart.Position + Vector3.new(1.5, -ent.HipHeight, -1.5))
-				local point7 = ESPWorldToViewport(ent.RootPart.Position + Vector3.new(-1.5, ent.HipHeight, -1.5))
-				local point8 = ESPWorldToViewport(ent.RootPart.Position + Vector3.new(-1.5, -ent.HipHeight, -1.5))
+
+				local point1 = ESPWorldToViewport(pos + Vector3.new(1.5, ent.HipHeight, 1.5))
+				local point2 = ESPWorldToViewport(pos + Vector3.new(1.5, -ent.HipHeight, 1.5))
+				local point3 = ESPWorldToViewport(pos + Vector3.new(-1.5, ent.HipHeight, 1.5))
+				local point4 = ESPWorldToViewport(pos + Vector3.new(-1.5, -ent.HipHeight, 1.5))
+				local point5 = ESPWorldToViewport(pos + Vector3.new(1.5, ent.HipHeight, -1.5))
+				local point6 = ESPWorldToViewport(pos + Vector3.new(1.5, -ent.HipHeight, -1.5))
+				local point7 = ESPWorldToViewport(pos + Vector3.new(-1.5, ent.HipHeight, -1.5))
+				local point8 = ESPWorldToViewport(pos + Vector3.new(-1.5, -ent.HipHeight, -1.5))
 				EntityESP.Line1.From = point1
 				EntityESP.Line1.To = point2
 				EntityESP.Line2.From = point3
@@ -4373,13 +4388,13 @@ run(function()
 						continue
 					end
 				end
-	
+
 				local _, rootVis = gameCamera:WorldToViewportPoint(ent.RootPart.Position)
 				for _, obj in EntityESP do
 					obj.Visible = rootVis
 				end
 				if not rootVis then continue end
-				
+
 				local rigcheck = ent.Humanoid.RigType == Enum.HumanoidRigType.R6
 				pcall(function()
 					local offset = rigcheck and CFrame.new(0, -0.8, 0) or CFrame.identity
@@ -4417,7 +4432,7 @@ run(function()
 			end
 		end
 	}
-	
+
 	ESP = vape.Categories.Render:CreateModule({
 		Name = 'ESP',
 		Function = function(callback)
@@ -4496,6 +4511,13 @@ run(function()
 				ColorFunc[methodused](hue, sat, val)
 			end
 		end
+	})
+	BoxSize = ESP:CreateSlider({
+		Name = 'Box Size',
+		Min = 1,
+		Max = 5,
+		Default = 2,
+		Darker = true
 	})
 	BoundingBox = ESP:CreateToggle({
 		Name = 'Bounding Box',
