@@ -5350,23 +5350,19 @@ run(function()
         return true
     end
 
-    local function canHitWithCustomReg()
-        if not CustomHitReg.Enabled then return true end
-        
-        local currentTime = tick()
-        local targetHitsIn10Sec = CustomHitRegSlider.Value
-        
-        -- hit every 10/30 = 0.3333 seconds
-        -- a tiny buffer (0.98) 
-        local delayBetweenHits = (10 / targetHitsIn10Sec) * 0.98
-        
-        if currentTime - lastCustomHitTime >= delayBetweenHits then
-            lastCustomHitTime = currentTime
-            return true
-        end
-        
-        return false
-    end
+	local function canHitWithCustomReg()
+		if not CustomHitReg or not CustomHitReg.Enabled then return true end
+		if not CustomHitRegSlider then return true end
+		local currentTime = tick()
+		local targetHitsPerSec = CustomHitRegSlider.Value
+		if targetHitsPerSec >= 35 then return true end
+		local delayBetweenHits = (10 / targetHitsPerSec) * 0.98
+		if currentTime - lastCustomHitTime >= delayBetweenHits then
+			lastCustomHitTime = currentTime
+			return true
+		end
+		return false
+	end
 
     local function FireAttackRemote(attackTable, ...)
         if not AttackRemote then return end
