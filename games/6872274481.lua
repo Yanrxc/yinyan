@@ -1,4 +1,5 @@
 --This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
+--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
 local run = function(func)
     local ok, err = pcall(func)
     if not ok then
@@ -36506,4 +36507,109 @@ run(function()
 		end,
 		Tooltip = 'infinfinf'
 	})
+end)
+
+run(function()
+	local AntiDizzy
+	local old = nil
+	AntiDizzy = vape.Categories.World:CreateModule({
+		Name = 'AntiDizzy',
+		Tooltip = 'makes you not get dizzy when you collect the purple mushroom',
+		Function = function(callback)
+			if callback then
+				old = bedwars.ForestEnvironmentCollectibleEntityController.canPickupEntity
+				bedwars.ForestEnvironmentCollectibleEntityController.canPickupEntity = function(plr,mushroom)
+					if plr and mushroom then
+						local mush = mushroom:GetAttribute("MushroomType")
+						if not mush then
+							return old(plr,mushroom)
+						end
+						if mush == 'Dizzy' then
+							return false
+						else
+							return true
+						end
+					else
+						return old(plr,mushroom)
+					end
+				end
+			else
+				bedwars.ForestEnvironmentCollectibleEntityController.canPickupEntity = old
+				old = nil
+			end
+		end
+	})
+end)
+
+run(function()
+	local AutoMushroom
+	local Range
+	local Streamer
+	local Delay
+	local Blacklist
+	local Animations
+
+	local vim = cloneref(game:GetService("VirtualInputManager"))
+
+	AutoMushroom = vape.Categories.World:CreateModule({
+		Name = 'AutoMushroom',
+		Tooltip = 'automatically collects mushrooms with for you.',
+		Function = function(callback)
+			if callback then
+				local mushrooms = collection('forest_environment_plant',AutoMushroom)
+				repeat
+					for i, v in mushrooms do
+						local mushtype = v:GetAttribute('MushroomType') or 'Heal'
+						local deltapos = (v.PrimaryPart.Position - entitylib.character.RootPart.Position).Magnitude
+						if table.find(Blacklist.ListEnabled, mushtype) then
+							task.wait(0.1)
+							continue
+						end
+						if deltapos <= Range.Value then
+							if Streamer.Enabled then
+								local prompt = v:FindFirstAncestorWhichIsA('ProximityPrompt')
+								local Key = prompt.KeyboardKeyCode
+								vim:SendKeyEvent(true, Key, false, game)
+								task.wait(prompt.HoldDuration + math.random())
+								vim:SendKeyEvent(false, Key, false, game)
+							else
+								if Animations.Enabled then
+									bedwars.GameAnimationUtil:playAnimation(lplr, bedwars.AnimationType.PUNCH)
+									bedwars.ViewmodelController:playAnimation(bedwars.AnimationType.FP_USE_ITEM)
+									bedwars.SoundManager:playSound(bedwars.SoundList.CROP_HARVEST)
+								end
+								bedwars.Client:Get('CollectCollectableEntity'):SendToServer({id = v:GetAttribute('Id')})
+							end
+						end
+					end
+					task.wait(math.max(Delay.Value,0.08))
+				until not AutoMushroom.Enabled
+			end
+		end
+	})
+	Range = AutoMushroom:CreateSlider({
+		Name = 'Distance',
+		Min = 0,
+		Max = 12,
+		Default = 8,
+		Suffix = function(val) 
+			if val == 1 then
+				return 'stud'
+			end
+			return 'studs'
+		end
+	})
+	Delay = AutoMushroom:CreateSlider({
+		Name = 'Delay',
+		Min = 0,
+		Max = 2,
+		Default = 0.1,
+		Decimal = 10
+	})
+	Blacklist = AutoMushroom:CreateTextList({
+		Name = "Blacklist",
+		Default = {'Dizzy'}
+	})
+	Streamer = AutoMushroom:CreateToggle({Name='Streamer Mode'})
+	Animations = AutoMushroom:CreateToggle({Name='Animations',Default=true})
 end)
