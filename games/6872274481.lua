@@ -13885,7 +13885,8 @@ run(function()
 					end)
 					if switched then return end
 					if old then
-						return old(self, maid, raycastparams, ...)
+						local ok, res = pcall(old, self, maid, raycastparams, ...)
+						if ok then return res end
 					end
 				end
 			else
