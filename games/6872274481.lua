@@ -6619,6 +6619,9 @@ run(function()
 									local inLegitRange = delta.Magnitude < 14.4
 									local allowSwingAnim = not (Swing and Swing.Enabled) and AnimDelay < tick() and (not (LegitAura and LegitAura.Enabled) or (inLegitRange and (tick() - swingCooldown) >= math.max(ChargeTime.Value, 0.11)))
 									if allowSwingAnim then
+										if LegitAura.Enabled then
+											continue
+										end
 										AnimDelay = tick() + (meta.sword.respectAttackSpeedForEffects and meta.sword.attackSpeed or math.max(ChargeTime.Value, 0.11))
 										bedwars.SwordController:playSwordEffect(meta, false)
 										if meta.displayName:find(' Scythe') then
