@@ -23,6 +23,7 @@ local mainapi = {
 	Windows = {}
 }
 
+local profileId = game.PlaceId == 6872265039 and game.PlaceId or game.GameId
 local cloneref = cloneref or function(obj)
 	return obj
 end
@@ -5735,8 +5736,8 @@ function mainapi:CreateCategoryList(categorysettings)
 				if ind then
 					if val ~= 'default' then
 						table.remove(mainapi.Profiles, ind)
-						if isfile('newvape/profiles/'..val..mainapi.Place..'.txt') and delfile then
-							delfile('newvape/profiles/'..val..mainapi.Place..'.txt')
+						if isfile('newvape/profiles/'..val..profileId..'.txt') and delfile then
+							delfile('newvape/profiles/'..val..profileId..'.txt')
 						end
 					end
 				else
@@ -6883,8 +6884,8 @@ function mainapi:Load(skipgui, profile)
 		self.ProfileLabel.Size = UDim2.fromOffset(getfontsize(self.ProfileLabel.Text, self.ProfileLabel.TextSize, self.ProfileLabel.Font).X + 16, 24)
 	end
 
-	if isfile('newvape/profiles/'..self.Profile..self.Place..'.txt') then
-		local savedata = loadJson('newvape/profiles/'..self.Profile..self.Place..'.txt')
+	if isfile('newvape/profiles/'..self.Profile..profileId..'.txt') then
+		local savedata = loadJson('newvape/profiles/'..self.Profile..profileId..'.txt')
 		if not savedata then
 			savedata = {Categories = {}, Modules = {}, Legit = {}}
 			self:CreateNotification('Vape', 'Failed to load '..self.Profile..' profile.', 10, 'alert')
@@ -7135,7 +7136,7 @@ function mainapi:Save(newprofile)
 	end
 
 	writefile('newvape/profiles/'..game.GameId..'.gui.txt', httpService:JSONEncode(guidata))
-	writefile('newvape/profiles/'..self.Profile..self.Place..'.txt', httpService:JSONEncode(savedata))
+	writefile('newvape/profiles/'..self.Profile..profileId..'.txt', httpService:JSONEncode(savedata))
 end
 
 function mainapi:SaveOptions(object, savedoptions)
@@ -8066,13 +8067,13 @@ local function refreshPremadeWindow()
 					counter = counter + 1
 				end
 				
-				if isfile('newvape/profiles/'..profileName..mainapi.Place..'.txt') and delfile then
-					pcall(function() delfile('newvape/profiles/'..profileName..mainapi.Place..'.txt') end)
+				if isfile('newvape/profiles/'..profileName..profileId..'.txt') and delfile then
+					pcall(function() delfile('newvape/profiles/'..profileName..profileId..'.txt') end)
 				end
 				
 				local premadeData = readfile(premadeFile)
 				
-				writefile('newvape/profiles/'..newProfileName..mainapi.Place..'.txt', premadeData)
+				writefile('newvape/profiles/'..newProfileName..profileId..'.txt', premadeData)
 				table.insert(mainapi.Profiles, {Name = newProfileName, Bind = {}})
 				profilesCategory:ChangeValue()
 				mainapi:Save(newProfileName)
@@ -8218,8 +8219,8 @@ general:CreateButton({
 	Name = 'Reset current profile',
 	Function = function()
 	mainapi.Save = function() end
-		if isfile('newvape/profiles/'..mainapi.Profile..mainapi.Place..'.txt') and delfile then
-			delfile('newvape/profiles/'..mainapi.Profile..mainapi.Place..'.txt')
+		if isfile('newvape/profiles/'..mainapi.Profile..profileId..'.txt') and delfile then
+			delfile('newvape/profiles/'..mainapi.Profile..profileId..'.txt')
 		end
 		shared.vapereload = true
 		if shared.VapeDeveloper then
