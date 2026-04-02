@@ -3068,7 +3068,7 @@ run(function()
         ["davey"] = "rbxassetid://9155464612",
         ["warlock"] = "rbxassetid://15186338366",
         ["ember"] = "rbxassetid://9630017904",
-        ["black_market_trader"] = "rbxassetid://9630017904",
+        ["black_market_trader"] = "rbxassetid://18922642482",
         ["yeti"] = "rbxassetid://9166205917",
         ["scarab"] = "rbxassetid://137137517627492",
         ["defender"] = "rbxassetid://131690429591874",
@@ -5516,7 +5516,12 @@ run(function()
         if not projectiles[NEWFastHitsUsage] then NEWFastHitsUsage = 1 end
         if projectiles and projectiles[NEWFastHitsUsage] and canShootNEW(projectiles[NEWFastHitsUsage]) then
             local item, ammo, projectile, itemMeta = unpack(projectiles[NEWFastHitsUsage])
-            shootFuncNEW(item, ammo, projectile, itemMeta, pos, ent)
+            local projSpeed = itemMeta.launchVelocity or 100
+            local gravity = itemMeta.gravitationalAcceleration or 196.2
+            local calc = prediction.SolveTrajectory(pos, projSpeed, gravity, ent.RootPart.Position, ent.RootPart.Velocity, workspace.Gravity, ent.HipHeight, ent.Jumping and 42.6 or nil, nil)
+            if calc then
+                shootFuncNEW(item, ammo, projectile, itemMeta, pos, ent)
+            end
         end
     end
 
@@ -6624,14 +6629,8 @@ run(function()
         Tooltip = 'Deals more damage quicker using projectiles',
         Default = false,
         Function = function(call)
-            Legit.Object.Visible = call
             FireRate.Object.Visible = call
         end
-    })
-    Legit = Killaura:CreateToggle({
-        Name = 'Legit Switch',
-        Darker = true,
-        Visible = false,
     })
     FireRate = Killaura:CreateSlider({
         Name = 'Fire rate',
@@ -8621,31 +8620,6 @@ run(function()
         Tooltip = 'Only works in first person mode'
     })
 
-    HitsRequiredToggle = AutoShoot:CreateToggle({
-        Name = 'Hits Required',
-        Default = false,
-        Tooltip = 'Require a certain number of hits on the same target before AutoShoot activates',
-        Function = function(callback)
-            if HitsRequiredSlider then HitsRequiredSlider.Object.Visible = callback end
-            if not callback then
-                currentHitTarget = nil
-                currentTrackedEntity = nil
-                currentHitCount = 0
-                activationReady = false
-                lastHitTime = 0
-            end
-        end
-    })
-
-    HitsRequiredSlider = AutoShoot:CreateSlider({
-        Name = 'Hits Needed',
-        Min = 1,
-        Max = 10,
-        Default = 2,
-        Tooltip = 'Number of consecutive hits on the same target required before AutoShoot will work',
-        Visible = false
-    })
-
     vape:Clean(vapeEvents.InventoryChanged.Event:Connect(function()
         lastInventoryUpdate = 0
     end))
@@ -9901,7 +9875,7 @@ run(function()
         ["davey"] = "rbxassetid://9155464612",
         ["warlock"] = "rbxassetid://15186338366",
         ["ember"] = "rbxassetid://9630017904",
-        ["black_market_trader"] = "rbxassetid://9630017904",
+        ["black_market_trader"] = "rbxassetid://18922642482",
         ["yeti"] = "rbxassetid://9166205917",
         ["scarab"] = "rbxassetid://137137517627492",
         ["defender"] = "rbxassetid://131690429591874",
