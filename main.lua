@@ -70,12 +70,12 @@ end
 local function finishLoading()
 	vape.Init = nil
 	vape:Load()
-	task.spawn(function()
+	vape:Clean(task.spawn(function()
 		repeat
-			pcall(function() vape:Save() end)
+			pcall(vape.Save, vape)
 			task.wait(10)
-		until not vape.Loaded
-	end)
+		until vape.Loaded == nil
+	end))
 
 	local teleportedServers
 	vape:Clean(playersService.LocalPlayer.OnTeleport:Connect(function()
@@ -127,6 +127,10 @@ end
 vape = guiFunc()
 if not vape then
     error('[AEROV4] GUI returned nil file may be corrupted try deleting newvape/guis/' .. gui .. '.lua and reinjecting.')
+end
+if not vape.Load then
+    if delfile then pcall(function() delfile('newvape/guis/' .. gui .. '.lua') end) end
+    error('[AEROV4] gui file corrupted (missing load) reinject..')
 end
 shared.vape = vape
 task.wait(0.1)
