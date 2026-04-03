@@ -23,7 +23,7 @@ local mainapi = {
 	Windows = {}
 }
 
-local profileId = game.GameId
+local profileId = game.PlaceId == 6872265039 and game.PlaceId or game.GameId
 local cloneref = cloneref or function(obj)
 	return obj
 end
