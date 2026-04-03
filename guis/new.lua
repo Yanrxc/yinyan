@@ -7188,6 +7188,9 @@ function mainapi:Uninject()
 	mainapi.gui:Destroy()
 	table.clear(mainapi.Libraries)
 	loopClean(mainapi)
+	mainapi.Clean = function() end
+	mainapi.Remove = function() end
+	mainapi.Save = function() end
 	shared.vape = nil
 	shared.vapereload = nil
 	shared.VapeIndependent = nil
@@ -7443,7 +7446,7 @@ local profilesCategory = mainapi:CreateCategoryList({
 
 local function getPremadeProfiles()
 	local premades = {}
-	local currentGame = tostring(mainapi.Place)
+	local currentGame = tostring(profileId)
 	
 	if not isfolder('newvape/profiles/premade') then
 		makefolder('newvape/profiles/premade')
@@ -7630,7 +7633,7 @@ local function showPreview(profileName)
 	end
 	previewPlaceholder.Visible = false
 	
-	local premadeFile = 'newvape/profiles/premade/'..profileName..mainapi.Place..'.txt'
+	local premadeFile = 'newvape/profiles/premade/'..profileName..profileId..'.txt'
 	
 	if not isfile(premadeFile) then
 		previewPlaceholder.Visible = true
@@ -8024,34 +8027,58 @@ local function refreshPremadeWindow()
 		end)
 		
 		local confirmingDupe = false
+			local confirmedOverwrite = false
 		loadButton.MouseButton1Click:Connect(function()
-			local premadeFile = 'newvape/profiles/premade/'..profileName..mainapi.Place..'.txt'
+			local premadeFile = 'newvape/profiles/premade/'..profileName..profileId..'.txt'
 			
 			if isfile(premadeFile) then
-				if profilesCategory:GetValue(profileName) then
+				if profilesCategory:GetValue(profileName) and not confirmedOverwrite then
 					if confirmingDupe then return end
 					confirmingDupe = true
-					local origText = loadButton.Text
-					local origColor = loadButton.BackgroundColor3
-					loadButton.Text = 'Already Loaded!'
+					loadButton.Text = 'Already exists!'
 					loadButton.BackgroundColor3 = Color3.fromRGB(220, 120, 30)
-					task.wait(1.2)
-					loadButton.Text = 'Load Again?'
-					loadButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
-					local confirmed = false
+					local stepped = false
 					local conn
 					conn = loadButton.MouseButton1Click:Connect(function()
-						confirmed = true
-						conn:Disconnect()
+						if not stepped then
+							stepped = true
+							loadButton.Text = 'Load Again?'
+							loadButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+						else
+							conn:Disconnect()
+							confirmingDupe = false
+							confirmedOverwrite = true
+							for i, v in ipairs(mainapi.Profiles) do
+								if v.Name == profileName then
+									table.remove(mainapi.Profiles, i)
+									break
+								end
+							end
+							if isfile('newvape/profiles/'..profileName..profileId..'.txt') and delfile then
+								pcall(function() delfile('newvape/profiles/'..profileName..profileId..'.txt') end)
+							end
+							local premadeData = readfile(premadeFile)
+							writefile('newvape/profiles/'..profileName..profileId..'.txt', premadeData)
+							table.insert(mainapi.Profiles, {Name = profileName, Bind = {}})
+							profilesCategory:ChangeValue()
+							mainapi:Load(true)
+							tween:Tween(premadeWindow, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+								Position = UDim2.new(0.5, -340, 0.5, -220),
+								Size = UDim2.fromOffset(640, 440)
+							})
+							task.wait(0.15)
+							premadeWindow.Visible = false
+							premadeBlocker.Visible = false
+							mainapi:CreateNotification('config loaded', 'replaced \''..profileName..'\' with the preset ', 3, 'info')
+						end
 					end)
-					task.wait(2.5)
+					task.wait(4)
 					conn:Disconnect()
 					confirmingDupe = false
-					if not confirmed then
-						loadButton.Text = origText
-						loadButton.BackgroundColor3 = origColor
-						return
-					end
+					confirmedOverwrite = false
+					loadButton.Text = 'Load'
+					loadButton.BackgroundColor3 = accentColor
+					return
 				end
 
 				loadButton.Text = 'Loading...'
@@ -8059,13 +8086,16 @@ local function refreshPremadeWindow()
 				
 				task.wait(0.1) 
 				
-				local newProfileName = profileName
-				local counter = 1
-				
-				while profilesCategory:GetValue(newProfileName) do
-					newProfileName = profileName .. '_' .. counter
-					counter = counter + 1
+				for i, v in ipairs(mainapi.Profiles) do
+					if v.Name == profileName then
+						table.remove(mainapi.Profiles, i)
+						break
+					end
 				end
+				if isfile('newvape/profiles/'..profileName..profileId..'.txt') and delfile then
+					pcall(function() delfile('newvape/profiles/'..profileName..profileId..'.txt') end)
+				end
+				local newProfileName = profileName
 				
 				if isfile('newvape/profiles/'..profileName..profileId..'.txt') and delfile then
 					pcall(function() delfile('newvape/profiles/'..profileName..profileId..'.txt') end)
@@ -8087,7 +8117,7 @@ local function refreshPremadeWindow()
 				premadeWindow.Visible = false
 				premadeBlocker.Visible = false
 				
-				mainapi:CreateNotification('config Swapped', 'dropped the old \''..profileName..'\' and reloaded it fresh fr', 3, 'info')
+				mainapi:CreateNotification('config Swapped', 'dropped the old \''..profileName..'\' and reloaded it ', 3, 'info')
 			else
 				loadButton.Text = 'Error!'
 				loadButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
@@ -9353,10 +9383,8 @@ mainapi:Clean(inputService.InputBegan:Connect(function(inputObj)
 			for _, v in mainapi.Windows do
 				v.Visible = false
 			end
-			if premadeWindow.Visible then
-				premadeWindow.Visible = false
-				premadeBlocker.Visible = false
-			end
+			premadeWindow.Visible = false
+			premadeBlocker.Visible = false
 			clickgui.Visible = not clickgui.Visible
 			tooltip.Visible = false
 			mainapi:BlurCheck()
