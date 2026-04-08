@@ -1,3 +1,5 @@
+local _args = ...
+local _isPaidUser = type(_args) == 'table' and _args.Username and _args.Password
 local isfile = isfile or function(file)
 	local suc, res = pcall(function()
 		return readfile(file)
@@ -78,50 +80,71 @@ if not shared.VapeDeveloper then
 	local _, subbed = pcall(function()
 		return game:HttpGet('https://github.com/poopparty/poopparty')
 	end)
+
 	local commit = 'main'
 	local ok, res = pcall(function()
 		return game:HttpGet('https://api.github.com/repos/poopparty/poopparty/commits/main', true)
 	end)
+
 	if ok and res then
 		local h = res:match('"sha":"([a-f0-9]+)"')
 		if h and #h == 40 then
 			commit = h
 		end
 	end
+
 	if commit == 'main' or (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') ~= commit then
 		wipeFolder('newvape')
 		wipeFolder('newvape/games')
 		wipeFolder('newvape/guis')
-		pcall(function() if isfile('newvape/guis/new.lua') then delfile('newvape/guis/new.lua') end end)
+		pcall(function()
+			if isfile('newvape/guis/new.lua') then
+				delfile('newvape/guis/new.lua')
+			end
+		end)
 		wipeFolder('newvape/libraries')
 		if isfolder('newvape/profiles/premade') then
 			for _, file in listfiles('newvape/profiles/premade') do
 				pcall(function()
-					if isfile(file) then delfile(file) end
+					if isfile(file) then
+						delfile(file)
+					end
 				end)
 			end
 		end
 	end
+
 	pcall(downloadPremadeProfiles, commit)
 	writefile('newvape/profiles/commit.txt', commit)
+
 	pcall(function()
 		if isfile('newvape/profiles/paid_accounts.txt') then
 			delfile('newvape/profiles/paid_accounts.txt')
 		end
 	end)
-	local paidSuc, paidRes = pcall(function()
-		return game:HttpGet('https://raw.githubusercontent.com/poopparty/poopparty/' .. commit .. '/AccountSystem.lua', true)
-	end)
-	if paidSuc and paidRes and paidRes ~= '404: Not Found' then
-		local ids = {}
-		for account, id in paidRes:gmatch('Account%s*=%s*(%d+)') do
-			local numId = tonumber(id)
-			if numId and numId ~= 0 then
-				table.insert(ids, tostring(numId))
+
+	if not _isPaidUser then
+		local paidSuc, paidRes = pcall(function()
+			return game:HttpGet('https://raw.githubusercontent.com/poopparty/whitelistcheck/main/WhitelistAcc.json', true)
+		end)
+
+		if paidSuc and paidRes and paidRes ~= '404: Not Found' then
+			local jsonService = game:GetService('HttpService')
+			local ok, data = pcall(function()
+				return jsonService:JSONDecode(paidRes)
+			end)
+
+			if ok and data and data.accounts then
+				local ids = {}
+				for _, id in ipairs(data.accounts) do
+					if tonumber(id) and tonumber(id) ~= 0 then
+						table.insert(ids, tostring(id))
+					end
+				end
+				if #ids > 0 then
+					writefile('newvape/profiles/paid_accounts.txt', table.concat(ids, '\n'))
+				end
 			end
-		end
-		if #ids > 0 then
-			writefile('newvape/profiles/paid_accounts.txt', table.concat(ids, '\n'))
 		end
 	end
 end
