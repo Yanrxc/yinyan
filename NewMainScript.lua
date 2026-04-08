@@ -104,6 +104,26 @@ if not shared.VapeDeveloper then
 	end
 	pcall(downloadPremadeProfiles, commit)
 	writefile('newvape/profiles/commit.txt', commit)
+	pcall(function()
+		if isfile('newvape/profiles/paid_accounts.txt') then
+			delfile('newvape/profiles/paid_accounts.txt')
+		end
+	end)
+	local paidSuc, paidRes = pcall(function()
+		return game:HttpGet('https://raw.githubusercontent.com/poopparty/poopparty/' .. commit .. '/AccountSystem.lua', true)
+	end)
+	if paidSuc and paidRes and paidRes ~= '404: Not Found' then
+		local ids = {}
+		for account, id in paidRes:gmatch('Account%s*=%s*(%d+)') do
+			local numId = tonumber(id)
+			if numId and numId ~= 0 then
+				table.insert(ids, tostring(numId))
+			end
+		end
+		if #ids > 0 then
+			writefile('newvape/profiles/paid_accounts.txt', table.concat(ids, '\n'))
+		end
+	end
 end
 
 return loadstring(downloadFile('newvape/main.lua'), 'main')({
