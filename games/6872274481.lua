@@ -7953,7 +7953,7 @@ run(function()
 						return s and r or nil
 					end
 
-					if plr.Player and getgenv().isAeroPaid and getgenv().isAeroPaid(plr.Player) then
+					if not getgenv().AeroLocalPaid and plr.Player and getgenv().isAeroPaid and getgenv().isAeroPaid(plr.Player) then
 						wasHovering = false
 						return old(...)
 					end
