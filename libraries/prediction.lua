@@ -1,9 +1,3 @@
---This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
---This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
---[[
-	Prediction Library
-	Source: https://devforum.roblox.com/t/predict-projectile-ballistics-including-gravity-and-motion/1842434
-]]
 local module = {}
 local eps = 1e-9
 local function isZero(d)
@@ -28,7 +22,7 @@ local function solveQuadric(c0, c1, c2)
 		return s0
 	elseif (D < 0) then
 		return
-	else -- if (D > 0)
+	else 
 		local sqrt_D = math.sqrt(D)
 
 		s0 = sqrt_D - p
@@ -57,16 +51,16 @@ local function solveCubic(c0, c1, c2, c3)
 	D = q * q + cb_p
 
 	if isZero(D) then
-		if isZero(q) then -- one triple solution
+		if isZero(q) then 
 			s0 = 0
 			num = 1
-		else -- one single and one double solution
+		else 
 			local u = cuberoot(-q)
 			s0 = 2 * u
 			s1 = -u
 			num = 2
 		end
-	elseif (D < 0) then -- Casus irreducibilis: three real solutions
+	elseif (D < 0) then 
 		local phi = (1 / 3) * math.acos(-q / math.sqrt(-cb_p))
 		local t = 2 * math.sqrt(-p)
 
@@ -74,7 +68,7 @@ local function solveCubic(c0, c1, c2, c3)
 		s1 = -t * math.cos(phi + math.pi / 3)
 		s2 = -t * math.cos(phi - math.pi / 3)
 		num = 3
-	else -- one real solution
+	else
 		local sqrt_D = math.sqrt(D)
 		local u = cuberoot(sqrt_D - q)
 		local v = -cuberoot(sqrt_D + q)
@@ -193,15 +187,12 @@ function module.SolveTrajectory(origin, projectileSpeed, gravity, targetPos, tar
 	local p, q, r = targetVelocity.X, targetVelocity.Y, targetVelocity.Z
 	local h, j, k = disp.X, disp.Y, disp.Z
 	local l = -.5 * gravity
-	--attemped gravity calculation, may return to it in the future.
 	if math.abs(q) > 0.01 and playerGravity and playerGravity > 0 then
 		local estTime = (disp.Magnitude / projectileSpeed)
-		local origq = q
-		local origj = j
 		for i = 1, 100 do
 			q -= (.5 * playerGravity) * estTime
 			local velo = targetVelocity * 0.016
-			local ray = workspace.Raycast(workspace, Vector3.new(targetPos.X, targetPos.Y, targetPos.Z), Vector3.new(velo.X, (q * estTime) - playerHeight, velo.Z), params)
+			local ray = workspace:Raycast(Vector3.new(targetPos.X, targetPos.Y, targetPos.Z), Vector3.new(velo.X, (q * estTime) - playerHeight, velo.Z), params)
 			if ray then
 				local newTarget = ray.Position + Vector3.new(0, playerHeight, 0)
 				estTime -= math.sqrt(((targetPos - newTarget).Magnitude * 2) / playerGravity)
@@ -224,7 +215,7 @@ function module.SolveTrajectory(origin, projectileSpeed, gravity, targetPos, tar
 	)
 	if solutions then
 		local posRoots = table.create(2)
-		for _, v in solutions do --filter out the negative roots
+		for _, v in solutions do 
 			if v > 0 then
 				table.insert(posRoots, v)
 			end
@@ -237,6 +228,7 @@ function module.SolveTrajectory(origin, projectileSpeed, gravity, targetPos, tar
 			local f = (k + r*t)/t
 			return origin + Vector3.new(d, e, f)
 		end
+		return nil
 	elseif gravity == 0 then
 		local t = (disp.Magnitude / projectileSpeed)
 		local d = (h + p*t)/t
@@ -244,6 +236,7 @@ function module.SolveTrajectory(origin, projectileSpeed, gravity, targetPos, tar
 		local f = (k + r*t)/t
 		return origin + Vector3.new(d, e, f)
 	end
+	return nil
 end
 
 return module
