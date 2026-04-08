@@ -187,15 +187,19 @@ function module.SolveTrajectory(origin, projectileSpeed, gravity, targetPos, tar
 	local p, q, r = targetVelocity.X, targetVelocity.Y, targetVelocity.Z
 	local h, j, k = disp.X, disp.Y, disp.Z
 	local l = -.5 * gravity
+
 	if math.abs(q) > 0.01 and playerGravity and playerGravity > 0 then
 		local estTime = (disp.Magnitude / projectileSpeed)
+		local origq = q
 		for i = 1, 100 do
-			q -= (.5 * playerGravity) * estTime
+			q = origq - (.5 * playerGravity) * estTime
 			local velo = targetVelocity * 0.016
-			local ray = workspace:Raycast(Vector3.new(targetPos.X, targetPos.Y, targetPos.Z), Vector3.new(velo.X, (q * estTime) - playerHeight, velo.Z), params)
+			local ray = workspace:Raycast(Vector3.new(targetPos.X, targetPos.Y, targetPos.Z), 
+				Vector3.new(velo.X, (q * estTime) - playerHeight, velo.Z), params)
+			
 			if ray then
 				local newTarget = ray.Position + Vector3.new(0, playerHeight, 0)
-				estTime -= math.sqrt(((targetPos - newTarget).Magnitude * 2) / playerGravity)
+				estTime = estTime - math.sqrt(((targetPos - newTarget).Magnitude * 2) / playerGravity)
 				targetPos = newTarget
 				j = (targetPos - origin).Y
 				q = 0
@@ -213,14 +217,17 @@ function module.SolveTrajectory(origin, projectileSpeed, gravity, targetPos, tar
 		2*j*q + 2*h*p + 2*k*r,
 		j*j + h*h + k*k
 	)
+	
 	if solutions then
-		local posRoots = table.create(2)
-		for _, v in solutions do 
+		local posRoots = {}
+		for _, v in solutions do
 			if v > 0 then
 				table.insert(posRoots, v)
 			end
 		end
+		table.sort(posRoots)
 		posRoots[1] = posRoots[1]
+
 		if posRoots[1] then
 			local t = posRoots[1]
 			local d = (h + p*t)/t
@@ -228,7 +235,6 @@ function module.SolveTrajectory(origin, projectileSpeed, gravity, targetPos, tar
 			local f = (k + r*t)/t
 			return origin + Vector3.new(d, e, f)
 		end
-		return nil
 	elseif gravity == 0 then
 		local t = (disp.Magnitude / projectileSpeed)
 		local d = (h + p*t)/t
@@ -236,7 +242,8 @@ function module.SolveTrajectory(origin, projectileSpeed, gravity, targetPos, tar
 		local f = (k + r*t)/t
 		return origin + Vector3.new(d, e, f)
 	end
-	return nil
+	
+	return targetPos
 end
 
 return module
