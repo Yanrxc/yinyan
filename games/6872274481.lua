@@ -36506,11 +36506,15 @@ run(function()
 		Name = "Davey Extender",
 		Function = function(callback)
 			if callback then
-				old = debug.getconstant(bedwars.CannonHandController.launchSelf,15)
-				debug.setconstant(bedwars.CannonHandController.launchSelf,15,old * Mutipler.Value)
+				if bedwars and bedwars.CannonHandController and bedwars.CannonHandController.launchSelf then
+					old = debug.getconstant(bedwars.CannonHandController.launchSelf, 15)
+					if old then
+						debug.setconstant(bedwars.CannonHandController.launchSelf, 15, old * Mutipler.Value)
+					end
+				end
 			else
-				if old then
-					debug.setconstant(bedwars.CannonHandController.launchSelf,15,old)
+				if old and bedwars and bedwars.CannonHandController and bedwars.CannonHandController.launchSelf then
+					debug.setconstant(bedwars.CannonHandController.launchSelf, 15, old)
 					old = nil
 				end
 			end
@@ -36523,11 +36527,13 @@ run(function()
 		Default = 0.5,
 		Decimal = 10,
 		Function = function(val)
-			if old then
-				debug.setconstant(bedwars.CannonHandController.launchSelf,15,old * val)
-			else
-				old = debug.getconstant(bedwars.CannonHandController.launchSelf,15)
-				debug.setconstant(bedwars.CannonHandController.launchSelf,15,old * Mutipler.Value)
+			if bedwars and bedwars.CannonHandController and bedwars.CannonHandController.launchSelf then
+				if not old then
+					old = debug.getconstant(bedwars.CannonHandController.launchSelf, 15)
+				end
+				if old then
+					debug.setconstant(bedwars.CannonHandController.launchSelf, 15, old * val)
+				end
 			end
 		end
 	})
