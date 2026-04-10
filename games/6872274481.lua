@@ -8840,21 +8840,13 @@ run(function()
 						return {}
 					end
 				end)
-
 				task.spawn(function()
-					if bedwars.ShopTaxController.taxStateUpdateEvent then
-						oldConnect = bedwars.ShopTaxController.taxStateUpdateEvent.Connect
-						bedwars.ShopTaxController.taxStateUpdateEvent.Connect = function(arg) 
-							bedwars.ShopTaxController.hasTax = 0
-							bedwars.ShopTaxController.taxedItems = {}
-							bedwars.ShopTaxController.addedTaxMap = {}
-						end
-					end
-				end)
-				task.spawn(function()
-					bedwars.ShopTaxController.hasTax = 0
-					bedwars.ShopTaxController.taxedItems = {}
-					bedwars.ShopTaxController.addedTaxMap = {}
+					repeat
+						bedwars.ShopTaxController.hasTax = 0
+						bedwars.ShopTaxController.taxedItems = {}
+						bedwars.ShopTaxController.addedTaxMap = {}
+						task.wait(0.1)
+					until not TaxRemover.Enabled
 				end)
 			else
 				bedwars.Store.dispatch = oldDispatch
