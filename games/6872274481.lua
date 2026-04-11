@@ -37751,39 +37751,6 @@ run(function()
 end)
 
 run(function()
-	local AutoEmote
-	AutoEmote = vape.Categories.World:CreateModule({
-		Name = "AutoEmote",
-		Tooltip = 'selects a random emote from ur locker whenever u kill someone',
-		Function = function(callback)
-			if callback then
-				AutoEmote:Clean(vapeEvents.EntityDeathEvent.Event:Connect(function(deathTable)
-                    if not entitylib.isAlive or not AutoEmote.Enabled then return end
-                    
-                    local killer = playersService:GetPlayerFromCharacter(deathTable.fromEntity)
-                    local killed = playersService:GetPlayerFromCharacter(deathTable.entityInstance)
-                    
-                    if killer == lplr and killed and killed ~= lplr then
-                        local slot = math.random(1,8)
-						local emoteSlot = lplr:GetAttribute('EmoteTypeSlot')..tostring(slot)
-						if emoteSlot == nil then
-							emoteSlot = ''							
-						end
-						if emoteSlot ~= '' then
-							bedwars.Client:Get("Emote"):CallServer({
-								emoteType = emoteSlot,
-							})
-						else
-							return
-						end
-                    end
-				end))
-			end
-		end
-	})
-end)
-
-run(function()
 	local MouseTP
 	local Mode
 	local Movement
