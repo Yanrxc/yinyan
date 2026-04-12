@@ -31572,3 +31572,532 @@ run(function()
 		Decimal = 10,
 	})
 end)
+
+run(function()
+    local Caitlyn
+    local MethodDropdown
+    local LowHealthSlider
+    local ExecuteRangeSlider
+    local HitRangeSlider
+    local ProximityRangeSlider
+    local connections = {}
+    local Players = playersService
+    local lplr = Players.LocalPlayer
+    local currentTarget = nil
+    local lastHitTime = 0
+    local lastContractSelect = 0
+    
+    local function selectContract(targetPlayer)
+        if not entitylib.isAlive then return false end
+        if tick() - lastContractSelect < 0.1 then return false end
+        
+        local storeState = bedwars.Store:getState()
+        local activeContract = storeState.Kit.activeContract
+        local availableContracts = storeState.Kit.availableContracts or {}
+        
+        if activeContract then return false end
+        if #availableContracts == 0 then return false end
+        
+        for _, contract in pairs(availableContracts) do
+            if contract.target == targetPlayer then
+                bedwars.Client:Get(remotes.BloodAssassinSelectContract):SendToServer({
+                    contractId = contract.id
+                })
+                lastContractSelect = tick()
+                return true
+            end
+        end
+        return false
+    end
+    
+    local function executeOnLowHealth()
+        if not currentTarget or tick() - lastHitTime > 3 then
+            currentTarget = nil
+            return
+        end
+        
+        if not currentTarget.Character then return end
+        
+        local humanoid = currentTarget.Character:FindFirstChild("Humanoid")
+        local rootPart = currentTarget.Character:FindFirstChild("HumanoidRootPart")
+        
+        if humanoid and rootPart and lplr.Character and lplr.Character:FindFirstChild("HumanoidRootPart") then
+            local health = humanoid.Health
+            local distance = (lplr.Character.HumanoidRootPart.Position - rootPart.Position).Magnitude
+            
+            if health > 0 and health <= LowHealthSlider.Value and distance <= ExecuteRangeSlider.Value then
+                selectContract(currentTarget)
+            end
+        end
+    end
+    
+    local function contractOnHit()
+        if not currentTarget or tick() - lastHitTime > 0.5 then
+            currentTarget = nil
+            return
+        end
+        
+        if not currentTarget.Character then return end
+        
+        local rootPart = currentTarget.Character:FindFirstChild("HumanoidRootPart")
+        
+        if rootPart and lplr.Character and lplr.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (lplr.Character.HumanoidRootPart.Position - rootPart.Position).Magnitude
+            
+            if distance <= HitRangeSlider.Value then
+                selectContract(currentTarget)
+            end
+        end
+    end
+    
+    local function proximityContract()
+        if not entitylib.isAlive then return end
+        
+        local myRoot = lplr.Character and lplr.Character:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return end
+        
+        local closestPlayer = nil
+        local closestDistance = ProximityRangeSlider.Value
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= lplr and player.Character then
+                local theirRoot = player.Character:FindFirstChild("HumanoidRootPart")
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                
+                if theirRoot and humanoid and humanoid.Health > 0 then
+                    local distance = (myRoot.Position - theirRoot.Position).Magnitude
+                    
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+        
+        if closestPlayer then
+            selectContract(closestPlayer)
+        end
+    end
+    
+    Caitlyn = vape.Categories.Kits:CreateModule({
+        Name = 'AutoCaitlyn',
+        Function = function(callback)
+            if callback then
+                local damageConnection = vapeEvents.EntityDamageEvent.Event:Connect(function(damageTable)
+                    if not entitylib.isAlive then return end
+                    
+                    local attacker = playersService:GetPlayerFromCharacter(damageTable.fromEntity)
+                    local victim = playersService:GetPlayerFromCharacter(damageTable.entityInstance)
+                
+                    if attacker == lplr and victim and victim ~= lplr then
+                        currentTarget = victim
+                        lastHitTime = tick()
+                    end
+                end)
+                table.insert(connections, damageConnection)
+                
+                task.spawn(function()
+                    repeat
+                        if entitylib.isAlive then
+                            local method = MethodDropdown.Value
+                            
+                            if method == "Execute on Low HP" then
+                                executeOnLowHealth()
+                            elseif method == "Contract on Hit" then
+                                contractOnHit()
+                            elseif method == "Proximity Select" then
+                                proximityContract()
+                            end
+                        end
+                        task.wait(0.1)
+                    until not Caitlyn.Enabled
+                end)
+            else
+                for _, conn in pairs(connections) do
+                    if typeof(conn) == "RBXScriptConnection" then
+                        conn:Disconnect()
+                    end
+                end
+                table.clear(connections)
+                
+                currentTarget = nil
+                lastHitTime = 0
+            end
+        end,
+        Tooltip = 'Auto contract selection for Caitlyn'
+    })
+    
+    MethodDropdown = Caitlyn:CreateDropdown({
+        Name = 'Method',
+        List = {"Execute on Low HP", "Contract on Hit", "Proximity Select"},
+        Default = "Execute on Low HP",
+        Tooltip = 'Contract selection method',
+        Function = function(value)
+            LowHealthSlider.Object.Visible = (value == "Execute on Low HP")
+            ExecuteRangeSlider.Object.Visible = (value == "Execute on Low HP")
+            HitRangeSlider.Object.Visible = (value == "Contract on Hit")
+            ProximityRangeSlider.Object.Visible = (value == "Proximity Select")
+        end
+    })
+    
+    LowHealthSlider = Caitlyn:CreateSlider({
+        Name = 'Select HP',
+        Min = 10,
+        Max = 100,
+        Default = 30,
+        Tooltip = 'HP value to execute contract'
+    })
+    
+    ExecuteRangeSlider = Caitlyn:CreateSlider({
+        Name = 'Select Range',
+        Min = 5,
+        Max = 50,
+        Default = 20,
+        Suffix = ' studs',
+        Tooltip = 'Range to select contract'
+    })
+    
+    HitRangeSlider = Caitlyn:CreateSlider({
+        Name = 'Hit Range',
+        Min = 10,
+        Max = 200,
+        Default = 100,
+        Suffix = ' studs',
+        Tooltip = 'Max range to select a contract when hitting the player'
+    })
+    
+    ProximityRangeSlider = Caitlyn:CreateSlider({
+        Name = 'Proximity Range',
+        Min = 10,
+        Max = 200,
+        Default = 50,
+        Suffix = ' studs',
+        Tooltip = 'Range to auto select nearby players'
+    })
+    
+    LowHealthSlider.Object.Visible = true
+    ExecuteRangeSlider.Object.Visible = true
+    HitRangeSlider.Object.Visible = false
+    ProximityRangeSlider.Object.Visible = false
+end)
+
+run(function()
+	local GrimReaperFix
+	GrimReaperFix = vape.Categories.Utility:CreateModule({
+		Name = 'GrimReaperFix',
+		Function = function(callback)
+			if callback then
+				GrimReaperFix:Clean(runService.Heartbeat:Connect(function()
+					if not entitylib.isAlive then return end
+					local humanoid = entitylib.character.Humanoid
+					if humanoid.HipHeight > 2.1 then
+						humanoid.HipHeight = 2.05
+					end
+				end))
+			end
+		end,
+		Tooltip = 'Fixes Grim Reaper height (prevents being too tall)'
+	})
+end)
+
+run(function()
+    local FarmerCletus
+    local CollectionToggle
+    local Animation
+    local RangeSlider
+    local ESPToggle
+    local ESPNotify
+    local ESPBackground
+    local ESPColor
+    
+    local Folder = Instance.new('Folder')
+    Folder.Parent = vape.gui
+    local Reference = {}
+    local lastNotification = 0
+    local spawnQueue = {}
+    local notificationCooldown = 1
+
+	local function kitCollection(id, func, range, specific)
+		repeat
+			if entitylib.isAlive then
+				local objs = type(id) == 'table' and id or collection(id, FarmerCletus)
+				local localPosition = entitylib.character.RootPart.Position
+				for _, v in objs do
+					if not FarmerCletus.Enabled then break end
+					local part = not v:IsA('Model') and v or v.PrimaryPart
+					if part and (part.Position - localPosition).Magnitude <= range then
+						pcall(func, v)
+						task.wait(0.05)
+					end
+				end
+			end
+			task.wait(0.1)
+		until not FarmerCletus.Enabled
+	end
+
+    local function sendNotification(count)
+        notif("Crop ESP", string.format("%d crops spawned", count), 3)
+    end
+
+    local function processSpawnQueue()
+        if #spawnQueue > 0 then
+            local currentTime = tick()
+            if currentTime - lastNotification >= notificationCooldown then
+                sendNotification(#spawnQueue)
+                lastNotification = currentTime
+                spawnQueue = {}
+            else
+                task.delay(notificationCooldown - (currentTime - lastNotification), function()
+                    if #spawnQueue > 0 then
+                        sendNotification(#spawnQueue)
+                        spawnQueue = {}
+                    end
+                end)
+            end
+        end
+    end
+
+    local function getProperImage(v)
+        if v.Name == "carrot" then
+            return bedwars.getIcon({itemType = 'carrot_seeds'}, true)
+        elseif v.Name == "melon" then
+            return bedwars.getIcon({itemType = 'melon_seeds'}, true)
+        elseif v.Name == "pumpkin" then
+            return bedwars.getIcon({itemType = 'pumpkin_seeds'}, true)
+        end
+        return bedwars.getIcon({itemType = 'carrot_seeds'}, true)
+    end
+
+    local function Added(v)
+        if Reference[v] then return end
+        
+        local billboard = Instance.new('BillboardGui')
+        billboard.Parent = Folder
+        billboard.Name = 'crop'
+        billboard.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
+        billboard.Size = UDim2.fromOffset(36, 36)
+        billboard.AlwaysOnTop = true
+        billboard.ClipsDescendants = false
+        billboard.Adornee = v
+        
+        local blur = addBlur(billboard)
+        blur.Visible = ESPBackground.Enabled
+        
+        local image = Instance.new('ImageLabel')
+        image.Size = UDim2.fromOffset(36, 36)
+        image.Position = UDim2.fromScale(0.5, 0.5)
+        image.AnchorPoint = Vector2.new(0.5, 0.5)
+        image.BackgroundColor3 = Color3.fromHSV(ESPColor.Hue, ESPColor.Sat, ESPColor.Value)
+        image.BackgroundTransparency = 1 - (ESPBackground.Enabled and ESPColor.Opacity or 0)
+        image.BorderSizePixel = 0
+        image.Image = getProperImage(v)
+        image.Parent = billboard
+        
+        local uicorner = Instance.new('UICorner')
+        uicorner.CornerRadius = UDim.new(0, 4)
+        uicorner.Parent = image
+        
+        Reference[v] = billboard
+        
+        if ESPNotify.Enabled then
+            table.insert(spawnQueue, {item = 'crop', time = tick()})
+            processSpawnQueue()
+        end
+    end
+
+    local function Removed(v)
+        if Reference[v] then
+            Reference[v]:Destroy()
+            Reference[v] = nil
+        end
+    end
+
+    local function findExistingCrops()
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and (obj.Name == "carrot" or obj.Name == "melon" or obj.Name == "pumpkin") then
+                if obj.Parent == workspace or obj.Parent.Parent == workspace then
+                    task.wait(0.1)
+                    Added(obj)
+                end
+            end
+        end
+    end
+
+    local function setupESP()
+        findExistingCrops()
+        
+        FarmerCletus:Clean(workspace.DescendantAdded:Connect(function(obj)
+            if obj:IsA("BasePart") and (obj.Name == "carrot" or obj.Name == "melon" or obj.Name == "pumpkin") then
+                if obj.Parent == workspace or obj.Parent.Parent == workspace then
+                    task.wait(0.1)
+                    Added(obj)
+                end
+            end
+        end))
+        
+        FarmerCletus:Clean(workspace.DescendantRemoving:Connect(function(obj)
+            if obj:IsA("BasePart") and Reference[obj] then
+                Removed(obj)
+            end
+        end))
+    end
+
+    FarmerCletus = vape.Categories.Kits:CreateModule({
+        Name = 'AutoFarmer',
+        Function = function(callback)
+            if callback then
+                if ESPToggle.Enabled then
+                    setupESP()
+                end
+                
+                if CollectionToggle.Enabled then
+                    task.spawn(function()
+                        kitCollection('HarvestableCrop', function(v)
+                            bedwars.Client:Get(remotes.Harvest):CallServer({position = bedwars.BlockController:getBlockPosition(v.Position)})
+                            
+                            if Animation.Enabled then
+                                bedwars.GameAnimationUtil:playAnimation(lplr.Character, bedwars.AnimationType.PUNCH)
+                                bedwars.ViewmodelController:playAnimation(bedwars.AnimationType.FP_USE_ITEM)
+                                
+                                if lplr.Character:GetAttribute('CropKitSkin') == bedwars.BedwarsKitSkin.FARMER_CLETUS_VALENTINE then
+                                    bedwars.SoundManager:playSound(bedwars.SoundList.VALETINE_CROP_HARVEST)
+                                else
+                                    bedwars.SoundManager:playSound(bedwars.SoundList.CROP_HARVEST)
+                                end
+                            end
+                        end, RangeSlider.Value, false)
+                    end)
+                end
+            else
+                Folder:ClearAllChildren()
+                table.clear(Reference)
+                table.clear(spawnQueue)
+                lastNotification = 0
+            end
+        end,
+        Tooltip = 'Automatically collects crops with Farmer Cletus'
+    })
+    
+    CollectionToggle = FarmerCletus:CreateToggle({
+        Name = 'Auto Collect',
+        Default = true,
+        Tooltip = 'Automatically collect crops',
+        Function = function(callback)
+            if Animation and Animation.Object then Animation.Object.Visible = callback end
+            if RangeSlider and RangeSlider.Object then RangeSlider.Object.Visible = callback end
+            
+            if callback and FarmerCletus.Enabled then
+                task.spawn(function()
+                    kitCollection('HarvestableCrop', function(v)
+                        bedwars.Client:Get(remotes.Harvest):CallServer({position = bedwars.BlockController:getBlockPosition(v.Position)})
+                        
+                        if Animation.Enabled then
+                            bedwars.GameAnimationUtil:playAnimation(lplr.Character, bedwars.AnimationType.PUNCH)
+                            bedwars.ViewmodelController:playAnimation(bedwars.AnimationType.FP_USE_ITEM)
+                            
+                            if lplr.Character:GetAttribute('CropKitSkin') == bedwars.BedwarsKitSkin.FARMER_CLETUS_VALENTINE then
+                                bedwars.SoundManager:playSound(bedwars.SoundList.VALETINE_CROP_HARVEST)
+                            else
+                                bedwars.SoundManager:playSound(bedwars.SoundList.CROP_HARVEST)
+                            end
+                        end
+                    end, RangeSlider.Value, false)
+                end)
+            end
+        end
+    })
+    
+    Animation = FarmerCletus:CreateToggle({
+        Name = 'Animation',
+        Default = true,
+        Tooltip = 'Play animation and sound when collecting'
+    })
+    
+    RangeSlider = FarmerCletus:CreateSlider({
+        Name = 'Range',
+        Min = 1,
+        Max = 10,
+        Default = 10,
+        Decimal = 1,
+        Suffix = ' studs',
+        Tooltip = 'Control distance to collect crops'
+    })
+    
+    ESPToggle = FarmerCletus:CreateToggle({
+        Name = 'Crop ESP',
+        Default = false,
+        Tooltip = 'Shows your crop locations',
+        Function = function(callback)
+            if ESPNotify and ESPNotify.Object then ESPNotify.Object.Visible = callback end
+            if ESPBackground and ESPBackground.Object then ESPBackground.Object.Visible = callback end
+            if ESPColor and ESPColor.Object then ESPColor.Object.Visible = callback end
+
+            if not callback then
+                if ESPColor and ESPColor.Object then
+                    ESPColor.Object.Visible = false
+                end
+            else
+                if ESPBackground and ESPBackground.Enabled then
+                    if ESPColor and ESPColor.Object then
+                        ESPColor.Object.Visible = true
+                    end
+                end
+            end
+            
+            if FarmerCletus.Enabled then
+                if callback then
+                    setupESP()
+                else
+                    Folder:ClearAllChildren()
+                    table.clear(Reference)
+                end
+            end
+        end
+    })
+    
+    ESPNotify = FarmerCletus:CreateToggle({
+        Name = 'Notify',
+        Default = false,
+        Tooltip = 'Get notifications when crops spawn'
+    })
+    
+    ESPBackground = FarmerCletus:CreateToggle({
+        Name = 'Background',
+        Default = true,
+        Function = function(callback)
+            if ESPColor and ESPColor.Object then ESPColor.Object.Visible = callback end
+            for _, v in Reference do
+                if v and v:FindFirstChild("ImageLabel") then
+                    v.ImageLabel.BackgroundTransparency = 1 - (callback and ESPColor.Opacity or 0)
+                    if v:FindFirstChild("Blur") then
+                        v.Blur.Visible = callback
+                    end
+                end
+            end
+        end
+    })
+    
+    ESPColor = FarmerCletus:CreateColorSlider({
+        Name = 'Background Color',
+        DefaultValue = 0,
+        DefaultOpacity = 0.5,
+        Function = function(hue, sat, val, opacity)
+            for _, v in Reference do
+                if v and v:FindFirstChild("ImageLabel") then
+                    v.ImageLabel.BackgroundColor3 = Color3.fromHSV(hue, sat, val)
+                    v.ImageLabel.BackgroundTransparency = 1 - opacity
+                end
+            end
+        end,
+        Darker = true
+    })
+
+    task.defer(function()
+        if Animation and Animation.Object then Animation.Object.Visible = true end
+        if RangeSlider and RangeSlider.Object then RangeSlider.Object.Visible = true end
+        if ESPNotify and ESPNotify.Object then ESPNotify.Object.Visible = false end
+        if ESPBackground and ESPBackground.Object then ESPBackground.Object.Visible = false end
+        if ESPColor and ESPColor.Object then ESPColor.Object.Visible = false end
+    end)
+end)
