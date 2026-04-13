@@ -1,4 +1,5 @@
 --This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
+--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
 local mainapi = {
 	Categories = {},
 	GUIColor = {
@@ -1447,9 +1448,33 @@ local function loadJson(path)
 	end)
 	return suc and type(res) == 'table' and res or nil
 end
+local draggableids = {}
 
-local function makeDraggable(gui, window)
-	gui.InputBegan:Connect(function(inputObj)
+local function removeDraggable(gui)
+    if remove then
+        if draggableids[gui] then
+            draggableids[gui]:Disconnect()
+            draggableids[gui] = nil
+        end
+        return
+    end
+
+end
+
+local function isDraggable(gui)
+	if draggableids[gui] then
+		return true
+	end
+	return false
+end
+
+local function makeDraggable(gui, window,rmv)
+	rmv = rmv or false
+	if rmv then
+		removeDraggable(gui)
+	end
+	if draggableids[gui] then return end
+	draggableids[gui] = gui.InputBegan:Connect(function(inputObj)
 		if window and not window.Visible then return end
 		if
 			(inputObj.UserInputType == Enum.UserInputType.MouseButton1 or inputObj.UserInputType == Enum.UserInputType.Touch)
@@ -1485,6 +1510,9 @@ local function makeDraggable(gui, window)
 		end
 	end)
 end
+
+getgenv().DraggableFunc = makeDraggable
+getgenv().IsDragFunc = isDraggable
 
 local function randomString()
 	local array = {}
