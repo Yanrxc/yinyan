@@ -15504,7 +15504,7 @@ run(function()
 		local target, path, endpos = bedwars.breakBlock(v, Effect.Enabled, Animation.Enabled, CustomHealth.Enabled and customHealthbar or nil, InstantBreak.Enabled or AutoTool.Enabled,BreakerAngle.Value or 360)
 		if path then
 			task.spawn(function()
-				if RagnarBreaker.Enabled and  store.equippedKit == 'berserker' then
+				if RagnarBreaker.Enabled and store.equippedKit == 'berserker' then
 					if bedwars.AbilityController:canUseAbility("berserker_rage") then
 						bedwars.AbilityController:useAbility('berserker_rage')
 					end
