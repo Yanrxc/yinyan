@@ -5581,18 +5581,12 @@ run(function()
         store.attackReach = (actualDistance * 100) // 1 / 100
         store.attackReachUpdate = tick() + 1
 
-        -- Only adjust targetPos toward actual selfpos — NEVER move selfPos.
-        -- The server cross-checks selfPos against the player's actual server position.
-        -- Moving selfPos causes ghost hits because the discrepancy exceeds server tolerance.
         if actualDistance > 13.5 and actualDistance <= 20 then
             local direction = (targetpos - selfpos).Unit
-            -- Pull target toward actual self. Cap at 3.5 studs (server target-position lag tolerance).
             local pullNeeded = actualDistance - 13.0
             local safePull = math.min(pullNeeded, 3.5)
             local newTarget = targetpos - direction * safePull
             attackTable.validate.targetPosition.value = newTarget
-            -- Recalculate cursor direction from the ACTUAL camera toward the adjusted target.
-            -- selfPos stays as actual player position — do not touch it.
             attackTable.validate.raycast = attackTable.validate.raycast or {}
             local camPos = (
                 attackTable.validate.raycast.cameraPosition and
@@ -6032,7 +6026,6 @@ run(function()
 
         local selfpos = entitylib.character.RootPart.Position
         local dist = (ent.RootPart.Position - selfpos).Magnitude
-        -- +1 stud so fast hits shoots slightly BEFORE normal attack range connects
         if dist > (AttackRange.Value + 1) then return end
 
         if FastHitsMode.Value == 'OGFastHits' then
@@ -6125,9 +6118,6 @@ run(function()
                 resetSwordCooldown() 
                 lastTargetTime = 0 
                 continueSwingCount = 0
-
-                -- If both Mouse and SwingOnly were already on before killaura enabled,
-                -- catch it here and disable both so the fast-swing bug can't happen.
                 if Mouse and LegitAura and Mouse.Enabled and LegitAura.Enabled then
                     Mouse:Toggle(false)
                     LegitAura:Toggle(false)
@@ -6395,9 +6385,6 @@ run(function()
                                                 AnimDelay = tick()
                                             end
                                         else
-                                            -- Always track lastAttackTime even without SwingTime.
-                                            -- Prevents burst-fire which causes server-side cooldown rejections
-                                            -- that show up as stuttering hitreg.
                                             lastAttackTime = tick()
                                         end
 
