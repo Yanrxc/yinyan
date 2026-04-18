@@ -50,7 +50,7 @@ local starterGui = cloneref(game:GetService('StarterGui'))
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local lightingService = cloneref(game:GetService('Lighting'))
 
-local isnetworkowner = identifyexecutor and table.find({'AWP', 'Nihon'}, ({identifyexecutor()})[1]) and isnetworkowner or function()
+local isnetworkowner = identifyexecutor and table.find({'Delta', 'Volt'}, ({identifyexecutor()})[1]) and isnetworkowner or function()
 	return true
 end
 local gameCamera = workspace.CurrentCamera
@@ -59,13 +59,30 @@ local assetfunction = getcustomasset
 
 local vape = shared.vape
 if vape and not vape.Clean then
-    vape.Clean = function(self, x)
-        if vape.Connections then table.insert(vape.Connections, x) end
-        return x
-    end
+	vape.Clean = function(self, conn)
+		if not conn then return end
+		
+		if not vape.Connections then
+			vape.Connections = {}
+		end
+
+		if self and self.Enabled then
+			vape.Connections[conn] = true
+			return conn
+		else
+			if vape.Connections[conn] then
+				if typeof(conn) == "RBXScriptConnection" then
+					pcall(conn.Disconnect, conn)
+				end
+				vape.Connections[conn] = nil
+			end
+		end
+	end
 end
 if vape and not vape.Remove then
-    vape.Remove = function() end
+    vape.Remove = function(module) 
+		return module 
+	end
 end
 local entitylib = vape.Libraries.entity
 local targetinfo = vape.Libraries.targetinfo
@@ -94,7 +111,8 @@ local store = {
     matchState = 0,
     queueType = 'bedwars_test',
     tools = {},
-    lastToolUpdate = 0,  
+    lastToolUpdate = 0,
+	lastKrystalUpdateCheck = 0,
 }
 local Reach = {}
 local HitBoxes = {}
@@ -1009,6 +1027,7 @@ run(function()
 		KKKnitController = require(lplr.PlayerScripts.TS.lib.knit['knit-controller']),
 		AbilityController = Flamework.resolveDependency('@easy-games/game-core:client/controllers/ability/ability-controller@AbilityController'),
 		CooldownController = Flamework.resolveDependency("@easy-games/game-core:client/controllers/cooldown/cooldown-controller@CooldownController"),
+		CooldownIDS = require(replicatedStorage.TS.cooldown["cooldown-id"]).CooldownId,		
 		AnimationType = require(replicatedStorage.TS.animation['animation-type']).AnimationType,
 		AnimationUtil = require(replicatedStorage['rbxts_include']['node_modules']['@easy-games']['game-core'].out['shared'].util['animation-util']).AnimationUtil,
 		AppController = require(replicatedStorage['rbxts_include']['node_modules']['@easy-games']['game-core'].out.client.controllers['app-controller']).AppController,
@@ -1781,6 +1800,7 @@ local kitImageIds = {
 	["wind_walker"] = "rbxassetid://9872355499",
 	['skeleton'] = "rbxassetid://120123419412119",
 	['winter_lady'] = "rbxassetid://83274578564074",
+	['soul_broker'] = 'rbxassetid://130409166262430'
 }
 
 local function isFirstPerson()
@@ -2222,7 +2242,7 @@ run(function()
 		local baseSpeed = 0.008
 		local multiplier = 1.35
 		local speed = baseSpeed * (multiplier ^ speedVal)
-		local smoothScale = 1 - ((smoothVal - 1) / 9) * 0.85
+		local smoothScale = 1 - ((smoothVal - 1) / 9) * 0.92
 		return math.min(speed, 0.95) * smoothScale
 	end
 
@@ -3137,8 +3157,11 @@ run(function()
 
             local initialCPS = getSafeCPS()
             if not initialCPS then return end
-
-            Thread = task.delay(1 / initialCPS.GetRandomValue(), function()
+			local t = 1 / initialCPS.GetRandomValue()
+			if t <= 0 then
+				t = 0.085
+			end
+            Thread = task.delay(t, function()
                 repeat
                     if not bedwars.AppController:isLayerOpen(bedwars.UILayers.MAIN) then
                         local blockPlacer = bedwars.BlockPlacementController and bedwars.BlockPlacementController.blockPlacer
@@ -3431,7 +3454,19 @@ run(function()
         uar.AspectType = Enum.AspectType.FitWithinMaxSize
         uar.DominantAxis = Enum.DominantAxis.Width
         uar.Parent = icon
-        icon.Image = kitImageIds[plr:GetAttribute("PlayingAsKit")] or kitImageIds["none"]
+		local suc, res = pcall(function()
+			return bedwars.BedwarsKitMeta[plr:GetAttribute("PlayingAsKit")] 
+		end)
+		if suc then
+			icon.Image = res.renderImage
+		else
+			warn(`[AEROV4 MODULE ISSUE]: [Module - KitRender (5v5) (Using bedwars.BedwarsKitMeta)] [Error]: {res}`)
+			if bedwars.BedwarsKitMeta then
+				icon.Image =  bedwars.BedwarsKitMeta.none.renderImage
+			else
+				icon.Image = kitImageIds[plr:GetAttribute("PlayingAsKit")]
+			end
+		end
         return icon
     end
 
@@ -6353,7 +6388,6 @@ run(function()
                                                 weapon = sword.tool,
                                                 entityInstance = v.Character,
                                                 chargedAttack = {chargeRatio = 0},
-                                                lastSwingServerTimeDelta = lastSwingServerTimeDelta,
                                                 validate = {
                                                     raycast = {
                                                         cameraPosition = {value = pos + Vector3.new(0, 2.5, 0)},
@@ -9444,6 +9478,7 @@ run(function()
                 kitIcon.Parent = nametag
 
                 local kit = ent.Player:GetAttribute('PlayingAsKits')
+				
                 if kit then
                     local kitImage = kitImageIds[kit:lower()]
                     kitIcon.Image = kitImage or kitImageIds["none"]
@@ -9790,7 +9825,16 @@ run(function()
 					local kitIcon = nametag:FindFirstChild('KitIcon')
 					if kitIcon and ent.Player then
 						local kit = ent.Player:GetAttribute('PlayingAsKits')
-						local newKitImage = kit and (kitImageIds[kit:lower()] or kitImageIds["none"]) or kitImageIds["none"]
+						local suc, res = pcall(function()
+							return bedwars.BedwarsKitMeta[kit]
+						end)	
+						local newKitImage = nil
+						if suc then
+							newKitImage = res.renderImage
+						else
+							warn(`[AEROV4 MODULE ISSUE]: [Module - NameTags (Using bedwars.BedwarsKitMeta)] [Error]: {res}`)
+							newKitImage = kitImageIds[kit] or kitImageIds['none'] 
+						end
 						if kitCache[ent] ~= newKitImage then
 							kitIcon.Image = newKitImage
 							kitCache[ent] = newKitImage
@@ -10893,7 +10937,7 @@ run(function()
 					local NewDis = (obj.Pivot.Position - entitylib.character.RootPart.Position).Magnitude
 					if NewDis <= MaxStuds then
 						local args = {uuid}
-						replicatedStorage:WaitForChild("rbxts_include"):WaitForChild("node_modules"):WaitForChild("@rbxts"):WaitForChild("net"):WaitForChild("out"):WaitForChild("_NetManaged"):WaitForChild("StyxTryOpenExitPortalFromClient"):InvokeServer(unpack(args))
+						bedwars.Client:Get(remotes.TryOpenStyxPortalExit).instance:InvokeServer(unpack(args))
 					end
 				end
 			end))
@@ -15587,8 +15631,8 @@ run(function()
 	local function attemptBreak(tab, localPosition)
 		if not tab then return false end
 		if MouseDown and MouseDown.Enabled and not inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return false end
-		if RagnarBreaker and RagnarBreaker.Enabled and bedwars.AbilityController then
-			if bedwars.AbilityController:canUseAbility("berserker_rage") then
+		if RagnarBreaker and RagnarBreaker.Enabled then
+			if bedwars.AbilityController:canUseAbility("berserker_rage") and store.equippedKit == 'berserker' and bedwars.AbilityController then
 				bedwars.AbilityController:useAbility('berserker_rage')
 			end
 		end
@@ -15604,6 +15648,9 @@ run(function()
 	end
 
 	local function attemptBreakNamed(names, localPosition)
+		if names == nil then
+			names = {}
+		end
 		if MouseDown and MouseDown.Enabled and not inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return false end
 		local best, bestDist = nil, math.huge
 		for _, v in store.blocks do
@@ -17124,6 +17171,9 @@ run(function()
 		['featheredtwilight'] = true,
 		['imabot122356'] = true,
 		['hobyboynum'] = true,
+		['10_lyz']=true,['Pluhmb']=true,['sopiapla1']=true,['iamveryawsome10293']=true,['5xGzt']=true,['M1D_XxdemonasxX']=true,['AraStxr']=true,
+		['soyleyenda84']=true,['Zeverlast']=true,['onlyluis20']=true,['leodragonfuerte']=true,['Zubeknakov']=true,['generalcyans']=true,['nightnm14']=true,['kuberxsaikrish']=true,['zikomnontop']=true,['Byte_RIFT30']=true,['IlIIIlllIIlIlIIlI']=true,
+		['manith513']=true,['DJ_hustIenomics']=true,['soryedd']=true,['AnybodySky']=true,['PISTONWAREINDUSTRIES']=true,['HarryPairsOfNUTS']=true,['Real_Shane']=true,['voljr1']=true
 	}
 	local teamNameMap = { [1] = 'Blue', [2] = 'Orange', [3] = 'Pink', [4] = 'Yellow' }
 	local joined = {}
@@ -17456,15 +17506,23 @@ run(function()
 	local StaffHUD
 	local ShowSpec
 	local ShowCloset
-	local ShowMod
+	local ShowMod  
 	local ShowImpossible
 
 	local STAFF_GROUP_ID = 5774246
 	local STAFF_MIN_RANK = 100
 	local closetNames = {
-		['phantomviperr2']=true,['gavin2015shadow']=true,['clocksurge']=true,
-		['amcoolll3']=true,['zorflow']=true,['dreamingnostaigia']=true,
-		['featheredtwilight']=true,['imabot122356']=true,['hobyboynum']=true,
+		['gavin2015shadow'] = true,
+		['clocksurge'] = true,
+		['amcoolll3'] = true,
+		['zorflow'] = true,
+		['dreamingnostaigia'] = true,
+		['featheredtwilight'] = true,
+		['imabot122356'] = true,
+		['hobyboynum'] = true,
+		['10_lyz']=true,['Pluhmb']=true,['sopiapla1']=true,['iamveryawsome10293']=true,['5xGzt']=true,['M1D_XxdemonasxX']=true,['AraStxr']=true,
+		['soyleyenda84']=true,['Zeverlast']=true,['onlyluis20']=true,['leodragonfuerte']=true,['Zubeknakov']=true,['generalcyans']=true,['nightnm14']=true,['kuberxsaikrish']=true,['zikomnontop']=true,['Byte_RIFT30']=true,['IlIIIlllIIlIlIIlI']=true,
+		['manith513']=true,['DJ_hustIenomics']=true,['soryedd']=true,['AnybodySky']=true,['PISTONWAREINDUSTRIES']=true,['HarryPairsOfNUTS']=true,['Real_Shane']=true,['voljr1']=true
 	}
 	local closetIds = {1502104539,3826146717,4531785383,1049767300,4926350670,653085195,184655415,2752307430,5087196317,5744061325,1536265275}
 
@@ -29007,268 +29065,143 @@ end)
 
 run(function()
 	local ElektraExtender
-	local RS = game.ReplicatedStorage
-	local EXTRA_BLOCKS = 2
-	local savedDepth    = nil
-	local savedCooldown = nil
-	local savedDuration = nil
-	local BF = nil
-	local heartbeat = nil
-
-	local function getBF()
-		if BF then return BF end
-		pcall(function()
-			BF = require(RS.TS.balance["balance-file"]).BalanceFile
-		end)
-		return BF
-	end
-
-	local function getCtrl()
-		local c = nil
-		pcall(function()
-			c = require(RS.rbxts_include.node_modules["@easy-games"].knit.src)
-				.KnitClient.Controllers.ElektraController
-		end)
-		return c
-	end
-
-	local function apply()
-		local bf = getBF()
-		if bf and bf.ELEKTRA then
-			if not savedDepth then
-				savedDepth    = bf.ELEKTRA.ELECTRIC_DASH_DEPTH_GOAL
-				savedCooldown = bf.ELEKTRA.ELECTRIC_DASH_COOLDOWN
-				savedDuration = bf.ELEKTRA.ELECTRIC_DASH_DURATION
-			end
-			bf.ELEKTRA.ELECTRIC_DASH_DEPTH_GOAL = savedDepth + (EXTRA_BLOCKS * 4) 
-			bf.ELEKTRA.ELECTRIC_DASH_COOLDOWN   = 0
-			bf.ELEKTRA.ELECTRIC_DASH_DURATION   = 0
-		end
-
-		heartbeat = game:GetService("RunService").Heartbeat:Connect(function()
-			local c = getCtrl()
-			if c then
-				c.dashReadyTime = -1
-				c.lastDash      = -math.huge
-			end
-		end)
-	end
-
-	local function revert()
-		if heartbeat then
-			heartbeat:Disconnect()
-			heartbeat = nil
-		end
-		local bf = getBF()
-		if bf and bf.ELEKTRA and savedDepth then
-			bf.ELEKTRA.ELECTRIC_DASH_DEPTH_GOAL = savedDepth
-			bf.ELEKTRA.ELECTRIC_DASH_COOLDOWN   = savedCooldown
-			bf.ELEKTRA.ELECTRIC_DASH_DURATION   = savedDuration
-		end
-		savedDepth    = nil
-		savedCooldown = nil
-		savedDuration = nil
-	end
+	local Range
+	local Old
 
 	ElektraExtender = vape.Categories.Kits:CreateModule({
-		Name     = "ElektraExtender",
-		Function = function(enabled)
-			if enabled then apply() else revert() end
-		end,
-		Tooltip  = "Extends Elektra dash + removes client cooldown"
-	})
-
-	ElektraExtender:CreateSlider({
-		Name     = "Extra Blocks",
-		Min      = 1,
-		Max      = 3,
-		Default  = 2,
-		Decimal  = 1,
-		Function = function(val)
-			EXTRA_BLOCKS = math.floor(val)
-			if ElektraExtender.Enabled then
-				local bf = getBF()
-				if bf and bf.ELEKTRA and savedDepth then
-					bf.ELEKTRA.ELECTRIC_DASH_DEPTH_GOAL = savedDepth + (EXTRA_BLOCKS * 4)
+		Name = 'ElektraExtender',
+		Tooltip = 'Makes you dash farther',
+		Function = function(callback)
+			if callback then
+				Old = bedwars.Client.Get
+				bedwars.Client.Get = function(self, remoteName)
+					local OldGet = Old(self, remoteName)
+					if remoteName == 'ElectricDash' then
+						return {
+							instance = OldGet.instance,
+							CallServer = function(...)
+								local Arguments = select(2, ...)
+								Arguments.destCFrame = Arguments.destCFrame + (CFrame.lookAt(Arguments.startCFrame.Position, Arguments.destCFrame.Position).LookVector * Extend.Value)
+								Arguments.startCFrame = Arguments.destCFrame
+								Arguments.cameraCFrame = Arguments.destCFrame
+								return OldGet:CallServer(Arguments)
+							end
+						}
+					end
+					return OldGet
 				end
+			else
+				bedwars.Client.Get = Old
+				Old = nil
 			end
 		end
+	})
+	Range = ElektraExtender:CreateSlider({
+		Name = 'Extend Multiplier',
+		Min = 0,
+		Max = 5,
+		Decimal = 100,
+		Default = 5
 	})
 end)
 
 run(function()
-	local RS = game.ReplicatedStorage
-	local oldIsOnCooldown = nil
-	local CooldownCtrl = nil
-	local CooldownId = nil
-	local customCooldown = 0
-	local lastAxeUse = 0
-	local RegentModule = nil
-
-	local function getCooldownId()
-		if CooldownId then return CooldownId end
-		pcall(function()
-			CooldownId = require(RS.TS.cooldown["cooldown-id"]).CooldownId
-		end)
-		return CooldownId
-	end
-
-	local function getCooldownCtrl()
-		if CooldownCtrl then return CooldownCtrl end
-		pcall(function()
-			CooldownCtrl = require(RS.rbxts_include.node_modules["@flamework"].core.out).Flamework.resolveDependency(
-				"@easy-games/game-core:client/controllers/cooldown/cooldown-controller@CooldownController"
-			)
-		end)
-		if not CooldownCtrl then
-			pcall(function()
-				CooldownCtrl = require(RS.rbxts_include.node_modules["@easy-games"].knit.src).KnitClient.Controllers.CooldownController
-			end)
-		end
-		return CooldownCtrl
-	end
-
-	local function apply()
-		if oldIsOnCooldown then return end
-		local ctrl = getCooldownCtrl()
-		local cd   = getCooldownId()
-		if not ctrl or not cd then return end
-
-		oldIsOnCooldown = ctrl.isOnCooldown
-		local lastAxeUse = -math.huge
-		local bypassUntil = 0
-		ctrl.isOnCooldown = function(self, id)
-			if id == cd.VOID_AXE then
-				if customCooldown <= 0 then return false end
-				local now = tick()
-				if now < bypassUntil then return false end
-				if not oldIsOnCooldown(self, id) then
-					lastAxeUse = -math.huge
+	local JadeCD
+	local CD
+	local lastDash = -math.huge
+	local old = nil
+	
+	JadeCD = vape.Categories.Kits:CreateModule({
+		Name = "JadeCooldown",
+		Tooltip = "Custom cooldown for Jade Hammer",
+		Function = function(callback)
+			if callback then
+				local old = bedwars.CooldownController.isOnCooldown
+				if lastDash == nil then
+					lastDash = -1
 				end
-				if (now - lastAxeUse) >= customCooldown then
-					lastAxeUse = now
-					bypassUntil = now + 0.15
-					return false
+				bedwars.CooldownController.isOnCooldown = function(self, id)
+					if id == bedwars.CooldownIDS.JADE_HAMMER then
+						local currentTime = tick()
+						if lastDash < 0 or (currentTime - lastDash >= CD.Value) then
+							lastDash = currentTime
+							return false 
+						else
+							return true 
+						end
+					end
+					return old(self, id)
 				end
-				return true
+			else
+				if old then
+					bedwars.CooldownController.isOnCooldown = old
+				end
 			end
-			return oldIsOnCooldown(self, id)
 		end
-	end
-
-	local function revert()
-		local ctrl = getCooldownCtrl()
-		if ctrl and oldIsOnCooldown then
-			ctrl.isOnCooldown = oldIsOnCooldown
-			oldIsOnCooldown = nil
-		end
-	end
-
-	RegentModule = vape.Categories.Kits:CreateModule({
-		Name     = "RegentCooldown",
-		Function = function(enabled)
-			if enabled then apply() else revert() end
-		end,
-		Tooltip  = "Custom cooldown for Void Regent axe"
 	})
 
-	RegentModule:CreateSlider({
-		Name     = "Cooldown",
-		Min      = 0,
-		Max      = 7,
-		Default  = 0,
-		Decimal  = 1,
-		Suffix   = function(val)
-			return val == 1 and 'second' or 'seconds'
+	CD = JadeCD:CreateSlider({
+		Name = "Cooldown",
+		Min = 0,
+		Max = 7,
+		Default = 0,
+		Decimal = 1,
+		Suffix = function(val)
+			if val == 1 then
+				return 'second'
+			end
+			return 'seconds'
 		end,
-		Function = function(val)
-			customCooldown = val
-		end
 	})
 end)
 
 run(function()
-	local RS = game.ReplicatedStorage
-	local oldIsOnCooldown = nil
-	local CooldownCtrl = nil
-	local CooldownId = nil
-	local customCooldown = 0
-	local lastJadeUse = -math.huge
-	local bypassUntil = 0
-	local JadeModule = nil
-
-	local function getCooldownId()
-		if CooldownId then return CooldownId end
-		pcall(function()
-			CooldownId = require(RS.TS.cooldown["cooldown-id"]).CooldownId
-		end)
-		return CooldownId
-	end
-
-	local function getCooldownCtrl()
-		if CooldownCtrl then return CooldownCtrl end
-		pcall(function()
-			CooldownCtrl = require(RS.rbxts_include.node_modules["@flamework"].core.out).Flamework.resolveDependency(
-				"@easy-games/game-core:client/controllers/cooldown/cooldown-controller@CooldownController"
-			)
-		end)
-		return CooldownCtrl
-	end
-
-	local function apply()
-		if oldIsOnCooldown then return end
-		local ctrl = getCooldownCtrl()
-		local cd   = getCooldownId()
-		if not ctrl or not cd then return end
-
-		oldIsOnCooldown = ctrl.isOnCooldown
-		ctrl.isOnCooldown = function(self, id)
-			if id == cd.JADE_HAMMER then
-				if customCooldown <= 0 then return false end
-				local now = tick()
-				if now < bypassUntil then return false end
-				if not oldIsOnCooldown(self, id) then
-					lastJadeUse = -math.huge
+	local RegentCD
+	local CD
+	local lastDash = -math.huge
+	local old = nil
+	
+	RegentCD = vape.Categories.Kits:CreateModule({
+		Name = "RegentCooldown",
+		Tooltip = "Custom cooldown for Void Regent axe",
+		Function = function(callback)
+			if callback then
+				local old = bedwars.CooldownController.isOnCooldown
+				if lastDash == nil then
+					lastDash = -1
 				end
-				if (now - lastJadeUse) >= customCooldown then
-					lastJadeUse = now
-					bypassUntil = now + 0.15
-					return false
+				bedwars.CooldownController.isOnCooldown = function(self, id)
+					if id == bedwars.CooldownIDS.VOID_AXE then
+						local currentTime = tick()
+						if lastDash < 0 or (currentTime - lastDash >= CD.Value) then
+							lastDash = currentTime
+							return false 
+						else
+							return true 
+						end
+					end
+					return old(self, id)
 				end
-				return true
+			else
+				if old then
+					bedwars.CooldownController.isOnCooldown = old
+				end
 			end
-			return oldIsOnCooldown(self, id)
 		end
-	end
-
-	local function revert()
-		local ctrl = getCooldownCtrl()
-		if ctrl and oldIsOnCooldown then
-			ctrl.isOnCooldown = oldIsOnCooldown
-			oldIsOnCooldown = nil
-		end
-	end
-
-	JadeModule = vape.Categories.Kits:CreateModule({
-		Name     = "JadeCooldown",
-		Function = function(enabled)
-			if enabled then apply() else revert() end
-		end,
-		Tooltip  = "Custom cooldown for Jade Hammer"
 	})
 
-	JadeModule:CreateSlider({
-		Name     = "Cooldown",
-		Min      = 0,
-		Max      = 7,
-		Default  = 0,
-		Decimal  = 1,
-		Suffix   = function(val)
-			return val == 1 and 'second' or 'seconds'
+	CD = RegentCD:CreateSlider({
+		Name = "Cooldown",
+		Min = 0,
+		Max = 7,
+		Default = 0,
+		Decimal = 1,
+		Suffix = function(val)
+			if val == 1 then
+				return 'second'
+			end
+			return 'seconds'
 		end,
-		Function = function(val)
-			customCooldown = val
-		end
 	})
 end)
 
@@ -29440,50 +29373,35 @@ run(function()
 	})
 end)
 
+
 run(function()
 	local InfKrystal
-	local conn
-
-	local function getSkaterController()
-		local ok, ctrl = pcall(function()
-			return bedwars.Knit.Controllers.GlacialSkaterController
-		end)
-		if ok and ctrl then return ctrl end
-
-		ok, ctrl = pcall(function()
-			return bedwars.KnitClient.Controllers.GlacialSkaterController
-		end)
-		if ok and ctrl then return ctrl end
-
-		return nil
-	end
-
 	InfKrystal = vape.Categories.Kits:CreateModule({
 		Name = 'InfKrystal',
+		Tooltip = 'infinfinf',
 		Function = function(callback)
 			if callback then
-				conn = runService.Heartbeat:Connect(function()
-					if not entitylib.isAlive then return end
-
-					local ctrl = getSkaterController()
-					if not ctrl then return end
-					ctrl:updateMomentum(100, "newValue")
+				runService:BindToRenderStep('InfiniteKrystalMovement', Enum.RenderPriority.Character.Value + 2, function()
+					store.lastKrystalUpdateCheck = tick()
+					local suc, res = pcall(function()
+						bedwars.GlacialSkaterController:updateMomentum(100, "newValue")
+					end)
+					if not suc then
+						warn(`[AEROV4 MODULE ISSUE]: [Module - InfKrystal (Starting to update Momentum)] [Error]: {res}`)
+						runService:UnbindFromRenderStep('InfiniteKrystalMovement')
+					end
 				end)
 			else
-				if conn then
-					conn:Disconnect()
-					conn = nil
-				end
-
-				local ctrl = getSkaterController()
-				if ctrl then
-					pcall(function()
-						ctrl:updateMomentum(0, "newValue")
-					end)
+				runService:UnbindFromRenderStep('InfiniteKrystalMovement')
+				store.lastKrystalUpdateCheck = tick() + 0.015
+				local suc, res = pcall(function()
+					bedwars.GlacialSkaterController:updateMomentum(0, "newValue")
+				end)
+				if not suc then
+					warn(`[AEROV4 MODULE ISSUE]: [Module - InfKrystal (Resetting updateMomentum function)] [Error]: {res}`)
 				end
 			end
-		end,
-		Tooltip = 'infinfinf'
+		end
 	})
 end)
 
@@ -30058,6 +29976,8 @@ run(function()
 		Suffix = 'hz'
 	})
 end)
+
+
 
 run(function()
 	local LegacyAnimation
@@ -30845,11 +30765,25 @@ end)
 
 run(function()
 	local SlientAura
+	local AimMode
 	local AttacksPerSecond
-	local Angle
+	local AimSpeed
+	local Acceleration
+	local SwingDelay
+	local IncreaseAttackRange
+	local ExtraAttackRange
+	local IncreaseSwingRange
+	local ExtraSwingRange
+	local MaxAngle
+	local MouseDown
+	local SwingOnly
+	local ThirdPersonView
+	local ViewSpeed
 	local MaxTargets
-	local Targets
-	local Sorts
+	local SortMethod
+	local ClickAim
+	local PiOptimizes
+	local PiStrength
 	local SwingRange = 12
 	local AttackRange = 12.4
 	local AnimDelay = 0
@@ -30859,106 +30793,130 @@ run(function()
 	local lastOptimizedAttackTime = 0
 	local nextAttackTime = 0
 	local AttackRemote = {FireServer = function() end}
+	local originalCameraOffset = Vector3.zero
+	local Limit = {Enabled = true}
+
 	task.spawn(function()
 		AttackRemote = bedwars.Client:Get(remotes.AttackEntity).instance
 	end)
-	local function optimizeHitData(selfpos, targetpos, delta)
-		local direction = (targetpos - selfpos).Unit
+
+	local function optimizeHitData(selfPos, targetPos, delta, targetVelocity)
+		local direction = delta.Unit
 		local distance = delta.Magnitude
-		local optimizedSelfPos = selfpos
-		local optimizedTargetPos = targetpos
-		local forwardOffset = 0
-		local backwardOffset = 0
-		
-		if distance > 20 then
-			forwardOffset = math.min(2.5 + (distance - 20) * 0.1, 3.5)
-			backwardOffset = 0.6
-		elseif distance > 18 then
-			local t = (distance - 18) / 2
-			forwardOffset = 1.8 + (t * 0.7)
-			backwardOffset = 0.3 + (t * 0.3)
-		elseif distance > 14.4 then
-			local t = (distance - 14.4) / 3.6
-			forwardOffset = 1.2 + (t * 0.6)
-			backwardOffset = 0.2 + (t * 0.1)
-		elseif distance > 10 then
-			local t = (distance - 10) / 4.4
-			forwardOffset = 0.8 + (t * 0.4)
-			backwardOffset = 0.1 * t
-		else
-			forwardOffset = math.max(0.4, distance * 0.08)
-			backwardOffset = 0
-		end
-		
-		optimizedSelfPos = selfpos + (direction * forwardOffset)
-		optimizedTargetPos = targetpos - (direction * backwardOffset)
-		
-		local verticalSelfOffset = math.clamp(0.5 + (distance * 0.02), 0.5, 1.2)
-		local verticalTargetOffset = math.clamp(0.8 + (distance * 0.03), 0.8, 1.8)
-		
-		optimizedSelfPos = optimizedSelfPos + Vector3.new(0, verticalSelfOffset, 0)
-		optimizedTargetPos = optimizedTargetPos + Vector3.new(0, verticalTargetOffset, 0)
-		
-		return optimizedSelfPos, optimizedTargetPos, direction
-	end
-	
-	local function getOptimizedAttackTiming(selfpos, targetpos)
-		if not selfpos or not targetpos then return false end
-		
 		local currentTime = tick()
-		local distance = (selfpos - targetpos).Magnitude
-		local delayBetweenAttacks
-		
-		if distance > 22 then
-			delayBetweenAttacks = 0.45 + ((distance - 22) * 0.02)
-		elseif distance > 20 then
-			local t = (distance - 20) / 2
-			delayBetweenAttacks = 0.423 + (t * 0.027)
-		elseif distance > 18 then
-			local t = (distance - 18) / 2
-			delayBetweenAttacks = 0.203 + (t * 0.22)
-		elseif distance > 14.4 then
-			local t = (distance - 14.4) / 3.6
-			delayBetweenAttacks = 0.106 + (t * 0.097)
-		elseif distance > 10 then
-			local t = (distance - 10) / 4.4
-			delayBetweenAttacks = 0.04 + (t * 0.066)
-		elseif distance > 6 then
-			local t = (distance - 6) / 4
-			delayBetweenAttacks = 0.02 + (t * 0.02)
-		else
-			delayBetweenAttacks = math.max(0.01, distance * 0.003)
+		local baseForward = 0.6 + math.clamp((distance - 8) * 0.085, 0, 3.2)
+		local baseBackward = 0.15 + math.clamp((distance - 12) * 0.045, 0, 0.95)
+		local t = math.clamp((distance - 10) / 14, 0, 1)
+		baseForward = baseForward * (1 + t * 0.75)
+		baseBackward = baseBackward * (1 + t * 0.6)
+
+		local velocityOffset = Vector3.zero
+		if targetVelocity and targetVelocity.Magnitude > 2 then
+			local predictTime = 0.09 + (distance * 0.0025)
+			velocityOffset = targetVelocity * predictTime * 0.72
 		end
-		
-		delayBetweenAttacks = delayBetweenAttacks * (0.95 + (math.random() * 0.1))
-		
-		if currentTime - lastOptimizedAttackTime >= delayBetweenAttacks then
-			lastOptimizedAttackTime = lastOptimizedAttackTime + delayBetweenAttacks
-			if currentTime - lastOptimizedAttackTime > delayBetweenAttacks * 2 then
-				lastOptimizedAttackTime = currentTime
-			end
+
+		if PiOptimizes.Enabled then
+			local piBase = distance / math.pi
+			local piFactor = (math.sin(piBase * 1.0) * 0.65 + math.sin(piBase * 2.7) * 0.35) * PiStrength.Value
+			
+			baseForward = baseForward + piFactor * 0.85
+			baseBackward = baseBackward + piFactor * 0.42
+			
+			local microJitter = math.sin(currentTime * 18 + distance) * 0.035 * PiStrength.Value
+			baseForward += microJitter
+		end
+
+		local optimizedSelf = selfPos + (direction * baseForward) + velocityOffset * 0.4
+		local optimizedTarget = targetPos - (direction * baseBackward) - velocityOffset * 0.25
+
+		local verticalSelf = 1.05 + distance * 0.095
+		verticalSelf = math.clamp(verticalSelf, 0.65, 1.92)
+
+		local verticalTarget = 1.35 + distance * 0.105
+		verticalTarget = math.clamp(verticalTarget, 0.95, 2.25)
+
+		if PiOptimizes.Enabled then
+			local vertPi = math.cos(distance / (math.pi * 0.92)) * 0.22 * PiStrength.Value
+			verticalSelf += vertPi * 1.1
+			verticalTarget += vertPi * 0.75
+		end
+
+		local noise = Vector3.new((math.random() - 0.5) * 0.08,(math.random() - 0.5) * 0.12,(math.random() - 0.5) * 0.08)
+
+		optimizedSelf += Vector3.new(0, verticalSelf, 0) + noise
+		optimizedTarget += Vector3.new(0, verticalTarget, 0) + noise * 0.6
+
+		return optimizedSelf, optimizedTarget, direction
+	end
+
+	local function getOptimizedAttackTiming(selfPos, targetPos, targetVelocity)
+		if not selfPos or not targetPos then return false end
+
+		local currentTime = tick()
+		local distance = (selfPos - targetPos).Magnitude
+
+		local baseDelay = 0.035
+
+		if distance > 20 then
+			baseDelay = 0.48 + (distance - 23) * 0.105
+		elseif distance > 19 then
+			baseDelay = 0.31 + (distance - 19) * 0.095
+		elseif distance > 15 then
+			baseDelay = 0.165 + (distance - 15) * 0.072
+		elseif distance > 11 then
+			baseDelay = 0.085 + (distance - 11) * 0.038
+		elseif distance > 7 then
+			baseDelay = 0.038 + (distance - 7) * 0.019
+		else
+			baseDelay = math.max(0.012, distance * 0.0042)
+		end
+
+		if targetVelocity then
+			local speed = targetVelocity.Magnitude
+			baseDelay = baseDelay * (1 + math.clamp(speed / 28, 0, 0.18))
+		end
+
+		if PiOptimizes.Enabled then
+			local piWave = math.sin(distance / math.pi + currentTime * 1.4)
+			local piJitter = math.cos(currentTime * math.pi * 3.7) * 0.018
+			baseDelay = baseDelay * (1 - piWave * 0.095) + piJitter
+		end
+
+		baseDelay = baseDelay * (1 + (math.random() - 0.5) * 0.09)
+
+		if currentTime - lastOptimizedAttackTime >= baseDelay then
+			lastOptimizedAttackTime = currentTime
 			return true
 		end
-		
+
 		return false
 	end
-	
+
 	local function getAttackData()
 		if isFrozen(nil, 10) then return false end
-		if lplr.Character:FindFirstChild('elk') then return false end
-		if MouseDown and MouseDown.Enabled then
-			local mousePressed = inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-			if not mousePressed then return false end
+
+		if MouseDown.Enabled and not inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+			return false
 		end
-		if bedwars.AppController:isLayerOpen(bedwars.UILayers.MAIN) then return false end
-		local sword = store.hand or store.tools.sword
+
+		local sword = Limit.Enabled and store.hand or store.tools.sword
 		if not sword or not sword.tool then return false end
+
 		local meta = bedwars.ItemMeta[sword.tool.Name]
 		if not meta or not meta.sword then return false end
-		if store.hand.toolType ~= 'sword' or bedwars.DaoController.chargingMaid then return false end
-		local lastSwing = bedwars.SwordController.lastSwing or 0
-		if (tick() - lastSwing) > 0.5 then return false end
-		if lastSwing == lastFiredSwing then return false end
+
+		if Limit.Enabled and (store.hand.toolType ~= 'sword' or bedwars.DaoController.chargingMaid) then
+			return false
+		end
+
+		if SwingOnly.Enabled then
+			local lastSwing = bedwars.SwordController.lastSwing or 0
+			if tick() - lastSwing > 0.395 or lastSwing == lastFiredSwing then
+				return false
+			end
+		end
+
 		return sword, meta
 	end
 
@@ -30967,144 +30925,328 @@ run(function()
 		Tooltip = 'simulates feeling of killaura having a built in safe aimasist\n[optional to turn off aimassist]',
 		Function = function(callback)
 			if callback then
-				local selfpos = nil
-				local attacked, sword, meta = {}, getAttackData()
+				local selfPos = Vector3.zero
+				local attacked = {}
 				Attacking = false
 				store.SlientauraTarget = nil
+				local aimProgress = 0 
+
 				SlientAura:Clean(runService.Heartbeat:Connect(function(dt)
-					selfpos = entitylib.character.RootPart.Position
-					if entitylib.isAlive and store.hand.toolType == 'sword' then
-						attacked, sword, meta = {}, getAttackData()
-						local ent = entitylib.AllPosition({
-							Range = SwingRange,
-							Part = 'RootPart',
-							Wallcheck = Targets.Walls.Enabled,
-							Players = Targets.Players.Enabled,
-							NPCs = Targets.NPCs.Enabled,
-							Sort = sortmethods[Sorts.Value]
-						})
-	
-						if #ent > 0 then
-							switchItem(sword.tool, 0)
-							local targetCount = 0
-							for _, v in ent do
-								if targetCount >= MaxTargets.Value then break end
-								
-								local delta = (v.RootPart.Position - selfpos)
-								local localfacing = entitylib.character.RootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
-								local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
-								if angle >= (math.rad(Angle.Value) / 2) then continue end
-								
-								targetinfo.Targets[v] = tick() + 1
+					if not entitylib.isAlive or store.hand.toolType ~= 'sword' then
+						Attacking = false
+						return
+					end
 
-								if not Attacking then
-									Attacking = true
-									store.SlientauraTarget = v
-									local inLegitRange = delta.Magnitude < 14.4
-									local allowSwingAnim = AnimDelay < tick()
-									if allowSwingAnim then
-										AnimDelay = tick() + (meta.sword.respectAttackSpeedForEffects and meta.sword.attackSpeed or 0.11)
-										bedwars.SwordController:playSwordEffect(meta, false)
-										if meta.displayName:find(' Scythe') then
-											bedwars.ScytheController:playLocalAnimation()
-										end
-										if vape.ThreadFix then
-											setthreadidentity(8)
-										end
-									end
-								end
+					selfPos = entitylib.character.RootPart.Position
+					local sword, meta = getAttackData()
+					if not sword then 
+						Attacking = false
+						return 
+					end
 
-								if delta.Magnitude > 13.8 then continue end
-							
-								local currentTime = tick()
-								local apsDelay = 1 / AttacksPerSecond.GetRandomValue()
-								
-								if currentTime < nextAttackTime then continue end
-								if not getOptimizedAttackTiming(selfpos, v.RootPart.Position) then continue end
+					local targets = entitylib.AllPosition({
+						Range = SwingRange,
+						Part = 'RootPart',
+						Wallcheck = Targets.Walls.Enabled,
+						Players = Targets.Players.Enabled,
+						NPCs = Targets.NPCs.Enabled,
+						Sort = sortmethods[SortMethod.Value],
+					})
 
-								local actualRoot = v.Character.PrimaryPart
-								if not actualRoot then continue end
-
-								local optimizedSelfPos, optimizedTargetPos, dir = optimizeHitData(selfpos, actualRoot.Position, delta)
-								local pos = optimizedSelfPos
-								
-								swingCooldown = currentTime
-								nextAttackTime = currentTime + apsDelay
-								
-								lastFiredSwing = bedwars.SwordController.lastSwing or 0
-								bedwars.SwordController.lastAttack = workspace:GetServerTimeNow()
-								store.SlientAttackReach = (delta.Magnitude * 100) // 1 / 100
-								store.SlientAttackReachUpdate = currentTime + 1
-								local _prevSwingTime = store.SlientSwingServerTimeDelta or workspace:GetServerTimeNow()
-								store.SlientSwingServerTimeDelta = workspace:GetServerTimeNow()
-
-								AttackRemote:FireServer({
-									weapon = sword.tool,
-									chargedAttack = {chargeRatio = 0},
-									lastSwingServerTimeDelta = workspace:GetServerTimeNow() - _prevSwingTime,
-									entityInstance = v.Character,
-									validate = {
-										raycast = {
-											cameraPosition = {value = pos + Vector3.new(0,2,0)},
-											cursorDirection = {value = dir}
-										},
-										targetPosition = {value = optimizedTargetPos},
-										selfPosition = {value = pos+ Vector3.new(0, 1, 0)}
-									}
-								})
-								 
-								targetCount = targetCount + 1
+					if #targets == 0 then
+						Attacking = false
+						aimProgress = 0
+						if ThirdPersonView.Enabled then
+							local hum = lplr.Character and lplr.Character:FindFirstChildOfClass("Humanoid")
+							if hum then
+								hum.CameraOffset = hum.CameraOffset:Lerp(originalCameraOffset, ViewSpeed.Value * dt * Acceleration.Value)
 							end
-							
-							Attacking = false
-						else
-							Attacking = false
 						end
+						return
+					end
+
+					switchItem(sword.tool, 0)
+
+					local targetCount = 0
+					Attacking = true
+
+					for _, target in targets do
+						if targetCount >= MaxTargets.Value then break end
+
+						local delta = target.RootPart.Position - selfPos
+						local distance = delta.Magnitude
+
+						local localFacing = entitylib.character.RootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+						local angle = math.acos(localFacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
+						if angle > math.rad(MaxAngle.Value / 2) then continue end
+
+						if AimMode.Value == 'Camera' then
+							local targetPos = target.RootPart.Position
+							local heightOffset = target.RootPart.Size.Y * 0.45 + math.sin(tick() * 6.2) * 0.07
+							targetPos = targetPos + Vector3.new(0, heightOffset, 0)
+
+							local noise = Vector3.new(math.noise(tick() * 8.5, targetCount) * 0.11, math.noise(tick() * 11.3, targetCount + 3) * 0.18, math.noise(tick() * 9.7, targetCount + 12) * 0.09)
+
+							local targetCFrame = CFrame.lookAt(gameCamera.CFrame.Position, targetPos + noise)
+							local currentCFrame = gameCamera.CFrame
+
+							local angleDiff = math.acos(currentCFrame.LookVector:Dot(targetCFrame.LookVector))
+							
+							local angleFactor = math.clamp(angleDiff * 1.85, 0.4, 2.8)
+							
+							local accel = 1 + (Acceleration.Value * aimProgress * 0.95)
+							aimProgress = math.min(1.15, aimProgress + dt * AimSpeed.Value * angleFactor * accel * 0.72)
+
+							local t = math.clamp(aimProgress, 0, 1)
+							local eased = t < 0.6 and 2.5 * t * t * t or 1 - math.pow(-2 * (t - 1), 3) / 2   
+
+							local lerpedCFrame = currentCFrame:Lerp(targetCFrame, eased * 0.89)
+
+							local tremorSpeed = 0.65 + (1 - eased) * 1.2
+							local jitterStrength = 0.45 * (1 + (1 - eased) * 0.6) 
+							
+							local tremble = CFrame.Angles(math.sin(tick() * 21.5) * 0.00095 * jitterStrength, math.cos(tick() * 17.8) * 0.00135 * jitterStrength, (math.sin(tick() * 33) * 0.0004 + (math.random() - 0.5) * 0.00025) * jitterStrength)
+
+							if aimProgress > 0.85 then
+								local microCorrect = CFrame.Angles(math.sin(tick() * 42) * 0.00025, math.cos(tick() * 38) * 0.0003, 0)
+								lerpedCFrame = lerpedCFrame * microCorrect
+							end
+
+							gameCamera.CFrame = lerpedCFrame * tremble
+						end
+
+						if ThirdPersonView.Enabled then
+							local hum = lplr.Character and lplr.Character:FindFirstChildOfClass("Humanoid")
+							if hum then
+								if originalCameraOffset == Vector3.zero then
+									originalCameraOffset = hum.CameraOffset
+								end
+								hum.CameraOffset = hum.CameraOffset:Lerp(Vector3.new(2.5, 0.5, 0), math.clamp(ViewSpeed.Value * dt * Acceleration.Value, 0, 1))
+							end
+						end
+
+						targetinfo.Targets[target] = tick() + 1
+
+						local allowSwing = AnimDelay < tick() and not (SwingOnly.Enabled)
+						if allowSwing then
+							AnimDelay = tick() + (meta.sword.respectAttackSpeedForEffects and meta.sword.attackSpeed or math.max(SwingDelay.Value, 0.11))
+							bedwars.SwordController:playSwordEffect(meta, false)
+							if meta.displayName:find(' Scythe') then
+								bedwars.ScytheController:playLocalAnimation()
+							end
+						end
+
+						if distance > AttackRange then continue end
+
+						local currentTime = tick()
+						local apsDelay = 1 / AttacksPerSecond.GetRandomValue()
+
+						if currentTime < nextAttackTime then continue end
+						if distance < 14.4 and (currentTime - swingCooldown) < math.max(SwingDelay.Value, 0.02) then continue end
+						if not getOptimizedAttackTiming(selfPos, target.RootPart.Position) then continue end
+
+						local actualRoot = target.Character.PrimaryPart
+						if not actualRoot then continue end
+
+						local optimizedSelf, optimizedTarget, dir = optimizeHitData(selfPos, actualRoot.Position, delta)
+
+						swingCooldown = currentTime
+						nextAttackTime = currentTime + apsDelay
+
+						if SwingOnly.Enabled then
+							lastFiredSwing = bedwars.SwordController.lastSwing or 0
+						end
+
+						bedwars.SwordController.lastAttack = workspace:GetServerTimeNow()
+						store.SlientAttackReach = math.floor(delta.Magnitude * 100) / 100
+						store.SlientAttackReachUpdate = currentTime + 1
+						store.SlientSwingServerTimeDelta = workspace:GetServerTimeNow()
+						store.SlientChargedRatio = currentTime
+
+						if distance < 14.4 and SwingDelay.Value > 0.11 then
+							AnimDelay = currentTime
+						end
+
+						AttackRemote:FireServer({
+							weapon = sword.tool,
+							chargedAttack = {chargeRatio = tick() - store.SlientChargedRatio},
+							lastSwingServerTimeDelta = workspace:GetServerTimeNow() - store.SlientSwingServerTimeDelta,
+							entityInstance = target.Character,
+							validate = {
+								raycast = {
+									cameraPosition = {value = optimizedSelf + Vector3.new(0, 2.33, 0)},
+									cursorDirection = {value = dir}
+								},
+								targetPosition = {value = optimizedTarget},
+								selfPosition = {value = optimizedSelf + Vector3.new(0, 1.5, 0)}
+							}
+						})
+
+						targetCount += 1
 					end
 				end))
 			else
 				Attacking = false
 				store.SlientauraTarget = nil
+				aimProgress = 0
+				if ThirdPersonView.Enabled then
+					local hum = lplr.Character and lplr.Character:FindFirstChildOfClass("Humanoid")
+					if hum and originalCameraOffset then
+						hum.CameraOffset = originalCameraOffset
+					end
+					originalCameraOffset = Vector3.zero
+				end
 			end
 		end
 	})
-	
+
 	local SA = SlientAura
-	
-	Targets = SlientAura:CreateTargets({
+
+	Targets = SA:CreateTargets({
 		Players = true,
 		Walls = false,
 		NPCs = false
 	})
-	
-	Sorts = SlientAura:CreateDropdown({
+
+	SortMethod = SA:CreateDropdown({
 		Name = 'Sort Method',
 		List = {'Distance', 'Damage', 'Threat', 'Kit', 'Health', 'Angle', 'Cursor', 'Forest'},
-		Default = 'Distance',
-		Tooltip = 'Prioritize targets when multiple are in range'
+		Default = 'Distance'
 	})
-	
+
+	AimMode = SA:CreateDropdown({
+		Name = 'Aim Mode',
+		List = {'Camera', 'Player', 'None'},
+		Default = 'Camera'
+	})
+
 	AttacksPerSecond = SA:CreateTwoSlider({
 		Name = 'Attacks per Second',
-		Min = 1,
+		Min = 0,
 		Max = 36,
-		DefaultMin = 24,
-		DefaultMax = 36,
+		DefaultMin = 10.5,
+		DefaultMax = 14.5,
 		Decimal = 10
 	})
-	
-	Angle = SA:CreateSlider({
+
+	AimSpeed = SA:CreateSlider({
+		Name = 'Aim Speed',
+		Min = 0,
+		Max = 20,
+		Default = 6,
+	})
+
+	Acceleration = SA:CreateSlider({
+		Name = 'Acceleration',
+		Tooltip = 'How quickly aim speed increases over time (0 = linear, 3 = very aggressive)',
+		Min = 0,
+		Max = 3,
+		Default = 0.8,
+		Decimal = 10
+	})
+
+	SwingDelay = SA:CreateSlider({
+		Name = 'Swing Delay',
+		Min = 0,
+		Max = 1,
+		Default = 0.3,
+		Decimal = 10
+	})
+
+	IncreaseAttackRange = SA:CreateToggle({
+		Name = 'Increase Attack Range',
+		Function = function(v)
+			ExtraAttackRange.Object.Visible = v
+			if not v then AttackRange = 12.4 end
+		end
+	})
+
+	ExtraAttackRange = SA:CreateSlider({
+		Name = 'Extra Attack Range',
+		Min = 0,
+		Max = 4,
+		Default = 1,
+		Decimal = 10,
+		Darker = true,
+		Visible = false,
+		Function = function(v) AttackRange = 12.4 + v end
+	})
+
+	IncreaseSwingRange = SA:CreateToggle({
+		Name = 'Increase Swing Range',
+		Function = function(v)
+			ExtraSwingRange.Object.Visible = v
+			if not v then SwingRange = 12 end
+		end
+	})
+
+	ExtraSwingRange = SA:CreateSlider({
+		Name = 'Extra Swing Range',
+		Min = 0,
+		Max = 6,
+		Default = 4,
+		Decimal = 10,
+		Darker = true,
+		Visible = false,
+		Function = function(v) SwingRange = 12 + v end
+	})
+
+	MaxAngle = SA:CreateSlider({
 		Name = 'Max Angle',
 		Min = 0,
-		Max = 120,
+		Max = 360,
 		Default = 120
 	})
-	
+
 	MaxTargets = SA:CreateSlider({
 		Name = 'Max Targets',
-		Min = 1,
+		Min = 0,
 		Max = 3,
 		Default = 1
+	})
+
+	MouseDown = SA:CreateToggle({Name = 'Require Mouse Down'})
+	SwingOnly = SA:CreateToggle({Name = 'Swing Only'})
+	ClickAim = SA:CreateToggle({Name = 'Click Aim', Default = false})
+
+	ThirdPersonView = SA:CreateToggle({
+		Name = '3rd Person Aim View',
+		Function = function(v)
+			ViewSpeed.Object.Visible = v
+			if not v then
+				local hum = lplr.Character and lplr.Character:FindFirstChildOfClass("Humanoid")
+				if hum then hum.CameraOffset = originalCameraOffset end
+				originalCameraOffset = Vector3.zero
+			end
+		end
+	})
+
+	ViewSpeed = SA:CreateSlider({
+		Name = 'View Speed',
+		Min = 0,
+		Max = 16,
+		Default = 4,
+		Darker = true,
+		Visible = false
+	})
+
+	PiOptimizes = SA:CreateToggle({
+		Name = "Pi Optimizes",
+		Tooltip = "Uses mathematical circle optimizations for better hits",
+		Default = false,
+		Function = function(v)
+			if PiStrength then PiStrength.Object.Visible = v end
+		end
+	})
+
+	PiStrength = SA:CreateSlider({
+		Name = "Pi Strength",
+		Min = 0,
+		Max = 2,
+		Decimal = 100,
+		Default = 0.85,
+		Darker = true,
+		Visible = false
 	})
 end)
 
@@ -31232,7 +31374,7 @@ run(function()
 					local delta = (currentLook - lastLookVector).Magnitude
 					lastLookVector = currentLook
 					local targetSize = math.clamp(delta * (MotionBlurStrength.Value * 20), 0, 24)
-					motionBlurEffect.Size = motionBlurEffect.Size + (targetSize - motionBlurEffect.Size) * 0.3
+					motionBlurEffect.Size = motionBlurEffect.Size + (targetSize - motionBlurEffect.Size) * 0.3 
 				end)
 			else
 				if motionBlurConn then
@@ -31882,7 +32024,7 @@ run(function()
 											switchItem(tool)
 										end
 										bedwars.Client:Get('HellBladeRelease'):SendToServer({
-											chargeTime = 1 + tick() - 0.045,
+											chargeTime = 1 + tick() - (0.045 + (math.random() - math.random())), -- had to make it random as possible...
 											weapon = tool,
 											player = lplr
 										})
@@ -32101,7 +32243,7 @@ run(function()
     local BrightnessSlider
     
     local lastLightingChange = 0
-    local DEBOUNCE_TIME = 0.016 
+    local DEBOUNCE_TIME = 0.018 
     
     Fullbright = vape.Categories.World:CreateModule({
         Name = "Fullbright",
@@ -32686,8 +32828,8 @@ run(function()
     local bedassistshopcheck = {Enabled = false}
 	local bedassisthandcheck = {Enabled = false}
 
-	local function getPickaxeNear(inv)
-		for i5, v5 in pairs(inv or (store.localInventory or store.inventory).inventory.items) do
+	local function getPickaxeNear()
+		for i5, v5 in pairs(store.inventory.inventory.items) do
 			if v5.itemType:find("pickaxe") then
 				return v5.itemType
 			end
@@ -32695,8 +32837,8 @@ run(function()
 		return nil
 	end
 
-	local function getAxeNear(inv)
-		for i5, v5 in pairs(inv or (store.localInventory or store.inventory).inventory.items) do
+	local function getAxeNear()
+		for i5, v5 in pairs(store.inventory.inventory.items) do
 			if v5.itemType:find("axe") and v5.itemType:find("pickaxe") == nil then
 				return v5.itemType
 			end
@@ -32708,10 +32850,7 @@ run(function()
 		return getPickaxeNear() or getAxeNear()
 	end
 
-    local camera = workspace.CurrentCamera
-    local runService = game:GetService("RunService")
-    local collectionService = game:GetService("CollectionService")
-    local lplr = game.Players.LocalPlayer
+    local camera = gameCamera
 
     local beds = {}
     local Connections = {}
