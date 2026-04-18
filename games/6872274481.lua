@@ -178,10 +178,12 @@ end
 local function _11(_12,_13)
     if not _12 or _12==lplr then return end
     local _14 = getAccountTier(_12)
+    print("[DEBUG] sender:", _12 and _12.Name, "tier:", _14)
     if _14 < 2 then return end
     local _15 = _13:lower()
     local _16 = _13:match("^/[Aa]ero [Ll]ag (.+)$")
     if _15=="/aero lag" or _16 then
+        print("[DEBUG] command detected from sender")
         if _16 then
             local _17 = _16
             local _18 = nil
@@ -193,9 +195,9 @@ local function _11(_12,_13)
             end
             if _18 then
                 _8(_18)
-                _5("Aero Lag","Lagged ".._18.Name)
+                _5("Aero Lag","lagged ".._18.Name)
             else
-                _5("Aero Lag","No free player matching '".._16.."'")
+                _5("Aero Lag","no free player matching '".._16.."'")
             end
         else
             for _, _19 in _2:GetPlayers() do
@@ -203,7 +205,7 @@ local function _11(_12,_13)
                     _8(_19)
                 end
             end
-            _5("Aero Lag","All free players lagged")
+            _5("Aero Lag","all free players lagged")
         end
     elseif _15=="/aero lag stop" then
         if _16 then
