@@ -1,3 +1,4 @@
+--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
 local mainapi = {
 	Categories = {},
 	GUIColor = {
@@ -2613,26 +2614,18 @@ components = {
 		
 		function optionapi:Save(tab)
 			tab.Targets = {
-				Players = self.Players.Enabled,
-				NPCs = self.NPCs.Enabled,
-				Invisible = self.Invisible.Enabled,
-				Walls = self.Walls.Enabled
+				Players  = self.Players  and self.Players.Enabled  or false,
+				NPCs     = self.NPCs     and self.NPCs.Enabled     or false,
+				Invisible= self.Invisible and self.Invisible.Enabled or false,
+				Walls    = self.Walls    and self.Walls.Enabled    or false,
 			}
 		end
 		
 		function optionapi:Load(tab)
-			if self.Players.Enabled ~= tab.Players then
-				self.Players:Toggle()
-			end
-			if self.NPCs.Enabled ~= tab.NPCs then
-				self.NPCs:Toggle()
-			end
-			if self.Invisible.Enabled ~= tab.Invisible then
-				self.Invisible:Toggle()
-			end
-			if self.Walls.Enabled ~= tab.Walls then
-				self.Walls:Toggle()
-			end
+			if self.Players  and self.Players.Enabled  ~= tab.Players   then self.Players:Toggle()  end
+			if self.NPCs     and self.NPCs.Enabled     ~= tab.NPCs      then self.NPCs:Toggle()     end
+			if self.Invisible and self.Invisible.Enabled ~= tab.Invisible then self.Invisible:Toggle() end
+			if self.Walls    and self.Walls.Enabled    ~= tab.Walls     then self.Walls:Toggle()    end
 		end
 		
 		function optionapi:Color(hue, sat, val, rainbowcheck)
@@ -2887,7 +2880,7 @@ components = {
 		end
 		
 		function optionapi:Load(tab)
-			if self.Value ~= tab.Value then
+			if tab.Value and self.Value ~= tab.Value then
 				self:SetValue(tab.Value)
 			end
 		end
@@ -7174,8 +7167,18 @@ function mainapi:Save(newprofile)
 		}
 	end
 
-	writefile('newvape/profiles/'..game.GameId..'.gui.txt', httpService:JSONEncode(guidata))
-	writefile('newvape/profiles/'..self.Profile..profileId..'.txt', httpService:JSONEncode(savedata))
+	local guiPath = writefile('newvape/profiles/'..game.GameId..'.gui.txt', httpService:JSONEncode(guidata))
+	local profilePath = writefile('newvape/profiles/'..self.Profile..profileId..'.txt', httpService:JSONEncode(savedata))
+
+	local ok1 = pcall(writefile, guiPath, httpService:JSONEncode(guidata))
+	if not ok1 then
+		pcall(writefile, guiPath:gsub('%.', '_'), httpService:JSONEncode(guidata))
+	end
+
+	local ok2 = pcall(writefile, profilePath, httpService:JSONEncode(savedata))
+	if not ok2 then
+		pcall(writefile, profilePath:gsub('%.', '_'), httpService:JSONEncode(savedata))
+	end
 end
 
 function mainapi:SaveOptions(object, savedoptions)
