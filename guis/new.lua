@@ -7162,7 +7162,7 @@ function mainapi:Save(newprofile)
 		savedata.Legit[i] = {
 			Enabled = v.Enabled,
 			Position = v.Children and {X = v.Children.Position.X.Offset, Y = v.Children.Position.Y.Offset} or nil,
-			Options = mainapi:SaveOptions(v, v.Options)
+			Options = v.Options and mainapi:SaveOptions(v, v.Options) or nil  
 		}
 	end
 
@@ -7181,13 +7181,16 @@ function mainapi:Save(newprofile)
 end
 
 function mainapi:SaveOptions(object, savedoptions)
-	if not savedoptions then return end
-	savedoptions = {}
-	for _, v in object.Options do
-		if not v.Save then continue end
-		v:Save(savedoptions)
-	end
-	return savedoptions
+    if not savedoptions then return end
+    if not object or not object.Options then return end  
+    savedoptions = {}
+    for _, v in object.Options do
+        if not v or not v.Save then continue end 
+        pcall(function()                          
+            v:Save(savedoptions)
+        end)
+    end
+    return savedoptions
 end
 
 function mainapi:Uninject()
