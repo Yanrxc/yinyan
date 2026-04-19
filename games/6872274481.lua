@@ -1,4 +1,3 @@
---This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.
 local run = function(func)
     local ok, err = pcall(func)
     if not ok then
@@ -3137,6 +3136,7 @@ end)
 	
 run(function()
     if isMobile then
+        if not bedwars.UILayers then bedwars.UILayers = { MAIN = "MAIN" } end
         local AutoClicker
         local CPS
         local BlockCPS = {}
@@ -3294,6 +3294,7 @@ run(function()
         end)
 
     else
+        if not bedwars.UILayers then bedwars.UILayers = { MAIN = "MAIN" } end
         local AutoClicker
         local CPS
         local BlockCPS = {}
@@ -6032,7 +6033,6 @@ run(function()
 
         local selfpos = entitylib.character.RootPart.Position
         local dist = (ent.RootPart.Position - selfpos).Magnitude
-        -- +1 stud so fast hits shoots slightly BEFORE normal attack range connects
         if dist > (AttackRange.Value + 1) then return end
 
         if FastHitsMode.Value == 'OGFastHits' then
@@ -6125,9 +6125,6 @@ run(function()
                 resetSwordCooldown() 
                 lastTargetTime = 0 
                 continueSwingCount = 0
-
-                -- If both Mouse and SwingOnly were already on before killaura enabled,
-                -- catch it here and disable both so the fast-swing bug can't happen.
                 if Mouse and LegitAura and Mouse.Enabled and LegitAura.Enabled then
                     Mouse:Toggle(false)
                     LegitAura:Toggle(false)
@@ -6395,9 +6392,6 @@ run(function()
                                                 AnimDelay = tick()
                                             end
                                         else
-                                            -- Always track lastAttackTime even without SwingTime.
-                                            -- Prevents burst-fire which causes server-side cooldown rejections
-                                            -- that show up as stuttering hitreg.
                                             lastAttackTime = tick()
                                         end
 
