@@ -86,12 +86,12 @@ end
 
 if not shared.VapeDeveloper then
 	local _, subbed = pcall(function()
-		return game:HttpGet('https://github.com/poopparty/poopparty')
+		return game:HttpGet('https://github.com/Yanrxc/yinyan')
 	end)
 
 	local commit = 'main'
 	local ok, res = pcall(function()
-		return game:HttpGet('https://api.github.com/repos/poopparty/poopparty/commits/main', true)
+		return game:HttpGet('https://api.github.com/repos/Yanrxc/yinyan/commits/main', true)
 	end)
 
 	if ok and res then
